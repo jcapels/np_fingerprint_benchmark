@@ -1,0 +1,12 @@
+biopython
+lxml
+BeautifulSoup4
+html5lib
+luigi
+pandas
+networkx
+deepmol[all]
+retry
+IPython
+pytorch-lightning
+transformers
