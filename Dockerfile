@@ -4,11 +4,9 @@ WORKDIR /workspace
 
 # depending on what you want to test
 COPY ./requirements_automl.txt /workspace/requirements.txt
-RUN pip install -r requirements.txt 
+RUN pip install -r requirements.txt
 
-RUN pip install --no-deps deepmol[all]==1.1.11
-
-RUN pip install git+https://github.com/samoturk/mol2vec#egg=mol2vec
+RUN pip install --no-deps git+https://github.com/BioSystemsUM/DeepMol.git@masked_learning
 
 # COPY ./scripts/data/np_classifier/ /workspace
 

@@ -1,0 +1,4 @@
+from pathway_prediction.data_integration.get_info_from_kegg import get_secondary_metabolites_and_their_pathways
+
+
+get_secondary_metabolites_and_their_pathways()
