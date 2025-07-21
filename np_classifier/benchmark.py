@@ -621,6 +621,78 @@ def optimize_for_morganfp():
                 metric=metric, n_trials=20, data=data, save_top_n=5, trial_timeout=60*60*24
                 )
     
+def optimize_for_mhfp():
+
+    def mhfp_steps(trial, data):
+        n_tasks = data.n_tasks
+        mode = data.mode
+        n_classes = len(set(data.y)) if mode == 'classification' else 1
+        if isinstance(mode, list):
+            if mode[0] == "classification":
+                n_classes = len(set(data.y[0]))
+            else:
+                n_classes = 1
+
+        if mode == 'classification' or (len(set(mode)) == 1 and mode[0] == 'classification'):
+        # , "multitask_irv_classifier_model",
+        # "progressive_multitask_classifier_model", "robust_multitask_classifier_model", "sc_score_model"])
+            mode = 'classification'
+        elif mode == 'regression' or (len(set(mode)) == 1 and mode[0] == 'regression'):
+            # "progressive_multitask_regressor_model", "robust_multitask_regressor_model"])
+            mode = 'regression'
+        else:
+            raise ValueError("data mode must be either 'classification' or 'regression' or a list of both")
+
+        batch_size = trial.suggest_categorical("batch_size_deepchem", [8, 16, 32, 64, 128, 256, 512])
+        epochs = trial.suggest_int("epochs_deepchem", 10, 200)
+        deepchem_kwargs = {"epochs": epochs}
+        final_steps = [('standardizer', _get_standardizer(trial))]
+
+        featurizer = MHFP()
+        n_features = len(featurizer.feature_names)
+        robust_multitask_classifier_kwargs = {'n_tasks': n_tasks, 'n_features': n_features, 'n_classes': n_classes,
+                                              'batch_size': batch_size}
+
+        dropouts = trial.suggest_float('dropout_robust_multitask_classifier', 0.0, 0.5, step=0.25)
+        robust_multitask_classifier_kwargs['dropouts'] = dropouts
+        layer_sizes = trial.suggest_categorical('layer_sizes_robust_multitask_classifier', [str(cat) for cat in [[50], [100], [500], [200, 100]]])
+        robust_multitask_classifier_kwargs['layer_sizes'] = eval(layer_sizes)
+        bypass_dropouts = trial.suggest_float('bypass_dropout_robust_multitask_classifier', 0.0, 0.5, step=0.25)
+        robust_multitask_classifier_kwargs['bypass_dropouts'] = bypass_dropouts
+        model = robust_multitask_classifier_model(
+                                              robust_multitask_classifier_kwargs=robust_multitask_classifier_kwargs,
+                                              deepchem_kwargs=deepchem_kwargs)
+
+        final_steps.extend([('featurizer', featurizer), ('model', model)])
+        return final_steps
+
+
+    dataset = pd.read_csv("train_dataset.csv", nrows=2)
+    labels = dataset.columns[2:]
+    # LOAD THE DATA
+    loader = CSVLoader('train_dataset.csv',
+                    smiles_field='SMILES',labels_fields=labels)
+    train_dataset = loader.create_dataset(sep=",")
+    train_dataset._label_names = [str(i) for i, label_ in enumerate(train_dataset._label_names)]
+
+    loader = CSVLoader('validation_dataset.csv',
+                    smiles_field='SMILES',labels_fields=labels)
+    validation_dataset = loader.create_dataset(sep=",")
+    validation_dataset._label_names = [str(i) for i, label_ in enumerate(validation_dataset._label_names)]
+
+
+    # OPTIMIZE THE PIPELINE
+    po = PipelineOptimization(direction='maximize', study_name='npclassifier_pathway_prediction_mhfp', sampler=optuna.samplers.TPESampler(seed=43),
+                            storage='sqlite:///npclassifier_pathway_prediction_mhfp.db')
+    metric = Metric(f1_score, average="macro")
+
+    data = copy(train_dataset)
+    data._label_names = [str(i) for i, label_ in enumerate(data._label_names)]
+
+    po.optimize(train_dataset=train_dataset, test_dataset=validation_dataset,objective_steps=mhfp_steps,
+                metric=metric, n_trials=20, data=data, save_top_n=5, trial_timeout=60*60*24
+                )
+    
 # optimize_for_dmpnn()
 # optimize_for_attentivefp()np_bert
 # optimize_for_np_classifier_fp()
@@ -628,5 +700,6 @@ def optimize_for_morganfp():
 # optimize_for_biosynfoni()
 # optimize_for_np_bert()
 # optimize_for_modernbert()
-optimize_for_morganfp()
+# optimize_for_morganfp()
+optimize_for_mhfp()
 

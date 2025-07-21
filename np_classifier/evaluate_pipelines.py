@@ -161,5 +161,6 @@ def evaluate_pipeline_bert(pipeline_path, name, bert_path, bert_test_path):
 # evaluate_pipeline("npclassifier_pathway_prediction_neural_npfp/trial_15", "np_classifier_neural_npfp")
 # evaluate_pipeline("npclassifier_pathway_prediction_np_classifier_fp/trial_11", "np_classifier_np_classifier_fp")
 # evaluate_pipeline_bert("npclassifier_pathway_prediction_np_bert/trial_14", "np_classifier_np_bert", "np_bert.pkl", "np_bert_test_set.pkl")
-evaluate_pipeline_bert("npclassifier_pathway_prediction_modern_bert/trial_0", "np_classifier_modern_bert", "modern_bert.pkl", "modern_bert_test_set.pkl")
+# evaluate_pipeline_bert("npclassifier_pathway_prediction_modern_bert/trial_0", "np_classifier_modern_bert", "modern_bert.pkl", "modern_bert_test_set.pkl")
+evaluate_pipeline("npclassifier_pathway_prediction_morganfp/trial_2", "np_classifier_morganfp")
 
