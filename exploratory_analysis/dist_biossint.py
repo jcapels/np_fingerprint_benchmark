@@ -48,17 +48,6 @@ def generate_reaction_chains(pathways: pd.DataFrame) -> dict:
     # return pd.DataFrame.from_dict(longest_paths, orient="index")
 
 
-# =========================== GLOBALS =========================
-'''
-SIM_FUNCTIONS = {
-    "c_tanimoto": fp.countanimoto,
-    "cosine_sim": fp.cosine_sim,
-    "manhattan_sim": fp.manhattan_sim,
-    "tanimoto_sim": fp.tanimoto_sim,
-    "euclidean_sim": fp.euclidean_sim,
-}
-'''
-# =============================================================================
 
 
 def id_mol_dict(struct_loc: str) -> dict:
@@ -113,40 +102,6 @@ def pairs_per_separation(chains: dict, max_separation: int) -> pd.DataFrame:
     # as category to reduce the time to map fingerprints
     return pd.concat([pairs_records, random_pairs], axis=0).astype("category")
 
-'''
-def all_similarity_scores(
-    pairs_df: pd.DataFrame,
-    id_to_fps: dict,
-    metric: str = "c_tanimoto",
-) -> pd.DataFrame:
-    """gets the distances between molecules, for the given fingerprints
-    passes any other args and kwargs to biosynfoni-derived fp functions in similarity
-    only supports inchi_pairs at the moment"""
-
-    fp_names = list(id_to_fps.values())[0].keys()
-    for fp_name in tqdm(fp_names, desc="getting similarity"):
-        pairs_df[fp_name] = np.nan
-        fp_dic = {k: v[fp_name] for k, v in id_to_fps.items()}
-        df = pairs_df.copy().astype(str)
-        df["fp1"] = df["mol1"].apply(lambda x: fp_dic[x] if x in fp_dic else np.nan)
-        df["fp2"] = df["mol2"].apply(lambda x: fp_dic[x] if x in fp_dic else np.nan)
-        similarities = [
-            (
-                SIM_FUNCTIONS[metric]([x[0], x[1]])
-                if not isinstance(x[0], float) and not isinstance(x[1], float)
-                else np.nan
-            )
-            for x in df[["fp1", "fp2"]].values
-        ]
-        pairs_df[fp_name] = similarities
-        # pairs_df[fp_name] = np.where(similarities == -1, np.nan, similarities)
-        # pairs_df[fp_name] = pairs_df[fp_name].replace(
-        #     -1, np.nan
-        # )
-    # drop rows for which all fp_names are nan
-    return pairs_df.dropna(subset=fp_names, how="all")
-    # return pairs_df
-'''
 
 def _chain_from_sim_matrix(sim_matrix, start=None):
     if start is None:

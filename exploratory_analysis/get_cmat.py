@@ -119,33 +119,76 @@ def fingerprint_pipeline(dataset, fingerprints, labels):
 
     return correlation_matrix, mst
 
+import matplotlib.pyplot as plt
+import numpy as np
+
 def violin_plot(similarity_matrix):
-    
     labels = [
-    "",
-    "NPClassifierFP",
-    "Biosynfoni",
-    "NP_AUX",
-    "MHFP", 
-    "MorganFP",
-    "NPBERT",
-    "ModernBERT"
+        "NPClassifierFP",
+        "Biosynfoni",
+        "NP_AUX",
+        "MHFP",
+        "MorganFP",
+        "NPBERT",
+        "ModernBERT"
     ]
 
+    # Define colors and linestyles
+    colors = {
+        "NPClassifierFP": "black",
+        "Biosynfoni": "mediumseagreen",
+        "NP_AUX": "royalblue",
+        "MHFP": "darkorange",
+        "MorganFP": "orchid",
+        "NPBERT": "slategray",
+        "ModernBERT": "darkviolet"
+    }
+
+    linestyles = {
+        "NPClassifierFP": "-",
+        "Biosynfoni": "-",
+        "NP_AUX": "--",
+        "MHFP": ":",
+        "MorganFP": "-.",
+        "NPBERT": (0, (3, 1, 1, 1)),
+        "ModernBERT": (0, (1, 1))
+    }
+
     fig, ax = plt.subplots()
-    ax.set_xticklabels(labels=labels, )
-    ax.set_xlabel("Fingerprint Method")           
+    ax.set_xticks(ticks=range(len(labels)))
+    ax.set_xticklabels(labels=labels)
+    ax.set_xlabel("Fingerprint Method")
     ax.set_ylabel("Cosine Similarity")
+
     similarity_matrix = np.nan_to_num(similarity_matrix, nan=0.0)
 
-    for i in range(0,similarity_matrix.shape[0]):
-        ax.violinplot(dataset=similarity_matrix[i],positions=[i])
+    for i in range(0, similarity_matrix.shape[0]):
+        label = labels[i]
+        vplot = ax.violinplot(dataset=similarity_matrix[i], positions=[i], showmeans=False, showmedians=True)
+
+        # Set the color and linestyle for each violin plot
+        for partname in ('cbars', 'cmins', 'cmaxes', 'cmedians'):
+            vp = vplot[partname]
+            vp.set_edgecolor(colors[label])
+            vp.set_linestyle(linestyles[label])
+            vp.set_linewidth(2)
+
+        for pc in vplot['bodies']:
+            pc.set_facecolor(colors[label])
+            pc.set_edgecolor(colors[label])
+            pc.set_alpha(0.7)
+
+        # Add a dot for the median
+        median = np.median(similarity_matrix[i])
+        ax.scatter(i, median, color=colors[label], zorder=3, s=50, label=f'Median {label}')
+
     plt.xticks(rotation=45)
     plt.ylim(-1, 1.4)
     plt.title("Distribution of Similarity Scores by Fingerprint")
     plt.tight_layout()
-
     plt.savefig("violinplot_similarity.png", dpi=300)
+    plt.close()
+
 
 def generate_mst_from_similarity(similarity_matrix, labels):
     """
@@ -202,7 +245,7 @@ if __name__ == "__main__":
     labels={
                 0: "NPClassifierFP",
                 1: "BiosynfoniKeys",
-                2: "NeuralNPFP",
+                2: "NP_AUX",
                 3: "MHFP", 
                 4: "MorganFP",
                 5: "NPBERT",
@@ -211,6 +254,7 @@ if __name__ == "__main__":
     
     with open("similarities.pkl", "rb") as f:
         similarity_matrix = pickle.load(f)
+
     violin_plot(similarity_matrix)
 
     generate_mst_from_similarity(similarity_matrix, labels)
