@@ -1,4 +1,5 @@
 
+from copy import deepcopy
 from tqdm import tqdm
 import numpy as np
 
@@ -94,10 +95,11 @@ def fingerprint_pipeline(dataset, fingerprints, labels):
     similarity_matrices = [] 
     i=0
     for featurizer in fingerprints:
-        featurizer.featurize(dataset, inplace=True)
-        dataset.to_csv(f"{featurizer.__class__.__name__}_fp.csv")
+        dataset_copy = deepcopy(dataset)
+        featurizer.featurize(dataset_copy, inplace=True)
+        dataset_copy.to_csv(f"{featurizer.__class__.__name__}_fp.csv")
 
-        similarities = compute_all_similarities(dataset) 
+        similarities = compute_all_similarities(dataset_copy) 
 
         similarity_matrices.append(similarities) 
 
@@ -127,7 +129,7 @@ def violin_plot(similarity_matrix):
         "NPClassifierFP",
         "Biosynfoni",
         "NP_AUX",
-        "MHFP",
+        # "MHFP",
         "MorganFP",
         "NPBERT",
         "ModernBERT"
@@ -138,7 +140,7 @@ def violin_plot(similarity_matrix):
         "NPClassifierFP": "black",
         "Biosynfoni": "mediumseagreen",
         "NP_AUX": "royalblue",
-        "MHFP": "darkorange",
+        # "MHFP": "darkorange",
         "MorganFP": "orchid",
         "NPBERT": "slategray",
         "ModernBERT": "darkviolet"
@@ -148,7 +150,7 @@ def violin_plot(similarity_matrix):
         "NPClassifierFP": "-",
         "Biosynfoni": "-",
         "NP_AUX": "--",
-        "MHFP": ":",
+        # "MHFP": ":",
         "MorganFP": "-.",
         "NPBERT": (0, (3, 1, 1, 1)),
         "ModernBERT": (0, (1, 1))
@@ -220,36 +222,36 @@ if __name__ == "__main__":
     
 
  #Load data from CSV file
-#     loader = CSVLoader(dataset_path='30k_sample.csv',
-#                    smiles_field='smiles',
-#                    id_field='ids',
-#                    mode='auto')
-# # create the dataset
-#     csv_dataset = loader.create_dataset(sep=',', header=0)
-#     fingerprint_pipeline(
-#         csv_dataset,                     # O dataset carregado com SMILES
-#         fingerprints=[NPClassifierFP(), BiosynfoniKeys(), NeuralNPFP(), MHFP(), MorganFingerprint(), LLM(model_path="../NPBERT", model=BertModel, config_class=BertConfig,
-#                           tokenizer=NPBERTTokenizer(vocab_file=os.path.join("../NPBERT", "vocab.txt")), device="cuda:1"),
-#                           LLM(model_path="../ModernBERT", model=ModernBertModel, config_class=ModernBertConfig, device="cuda:1")
-#                           ],
-        # labels={
-        #         0: "NPClassifierFP",
-        #         1: "BiosynfoniKeys",
-        #         2: "NeuralNPFP",
-        #         3: "MHFP", 
-        #         4: "MorganFingerprint",
-        #         5: "NPBERT",
-        #         6: "ModernBERT"
-        # } 
-#                ) 
+    loader = CSVLoader(dataset_path='30k_sample.csv',
+                   smiles_field='smiles',
+                   id_field='ids',
+                   mode='auto')
+# create the dataset
+    csv_dataset = loader.create_dataset(sep=',', header=0)
+    fingerprint_pipeline(
+        csv_dataset,                     # O dataset carregado com SMILES
+        fingerprints=[NPClassifierFP(), BiosynfoniKeys(), NeuralNPFP(), MorganFingerprint(), LLM(model_path="../NPBERT", model=BertModel, config_class=BertConfig,
+                          tokenizer=NPBERTTokenizer(vocab_file=os.path.join("../NPBERT", "vocab.txt")), device="cuda:1"),
+                          LLM(model_path="../ModernBERT", model=ModernBertModel, config_class=ModernBertConfig, device="cuda:1")
+                          ],
+        labels={
+                0: "NPClassifierFP",
+                1: "BiosynfoniKeys",
+                2: "NeuralNPFP",
+                # 3: "MHFP", 
+                3: "MorganFingerprint",
+                4: "NPBERT",
+                5: "ModernBERT"
+        } 
+               ) 
     labels={
                 0: "NPClassifierFP",
                 1: "BiosynfoniKeys",
                 2: "NP_AUX",
-                3: "MHFP", 
-                4: "MorganFP",
-                5: "NPBERT",
-                6: "ModernBERT"
+                # 3: "MHFP", 
+                3: "MorganFP",
+                4: "NPBERT",
+                5: "ModernBERT"
         } 
     
     with open("similarities.pkl", "rb") as f:

@@ -728,7 +728,7 @@ def optimize_for_modern_bert():
 
 
     # OPTIMIZE THE PIPELINE
-    _optimize(datasets, modern_bert_steps, 'modern_bert_1')
+    _optimize(datasets, modern_bert_steps, 'modern_bert')
 
 def optimize_biosynfoni_np_classifierfp():
 
@@ -947,14 +947,14 @@ def optimize_for_mhfp():
         datasets = pickle.load(file)
 
     # OPTIMIZE THE PIPELINE
-    _optimize(datasets, mhfp_steps, 'mhfp')
+    _optimize(datasets, mhfp_steps, 'mhfp_1')
 
 # optimize_for_neural_npfp()
-optimize_for_np_classifier_fp()
-optimize_for_biosynfoni()
-optimize_for_dmpnn()
-optimize_for_np_bert()
-optimize_for_modern_bert()
-optimize_biosynfoni_np_classifierfp()
-optimize_for_morganfp()
+# optimize_for_np_classifier_fp()
+# optimize_for_biosynfoni()
+# optimize_for_dmpnn()
+# optimize_for_np_bert()
+# optimize_for_modern_bert()
+# optimize_biosynfoni_np_classifierfp()
+# optimize_for_morganfp()
 optimize_for_mhfp()

@@ -683,14 +683,14 @@ def optimize_for_mhfp():
 
     # OPTIMIZE THE PIPELINE
     po = PipelineOptimization(direction='maximize', study_name='npclassifier_pathway_prediction_mhfp', sampler=optuna.samplers.TPESampler(seed=43),
-                            storage='sqlite:///npclassifier_pathway_prediction_mhfp.db')
+                            storage='sqlite:///npclassifier_pathway_prediction_mhfp.db', load_if_exists=True)
     metric = Metric(f1_score, average="macro")
 
     data = copy(train_dataset)
     data._label_names = [str(i) for i, label_ in enumerate(data._label_names)]
 
     po.optimize(train_dataset=train_dataset, test_dataset=validation_dataset,objective_steps=mhfp_steps,
-                metric=metric, n_trials=20, data=data, save_top_n=5, trial_timeout=60*60*24
+                metric=metric, n_trials=8, data=data, save_top_n=5, trial_timeout=60*60*24
                 )
     
 # optimize_for_dmpnn()

@@ -6,7 +6,7 @@ WORKDIR /workspace
 COPY ./requirements_automl.txt /workspace/requirements.txt
 RUN pip install -r requirements.txt
 
-RUN pip install --no-deps git+https://github.com/BioSystemsUM/DeepMol.git@masked_learning
+RUN pip install --no-deps  --no-cache-dir git+https://github.com/BioSystemsUM/DeepMol.git@masked_learning
 
 # COPY ./scripts/data/np_classifier/ /workspace
 
