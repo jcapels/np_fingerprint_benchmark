@@ -24,8 +24,43 @@ def cosine_similarity(x, y):
     
     return dot_product / norm_product
 
+def counted_tanimoto_similarity(x, y):
+    """
+    Compute counted Tanimoto similarity between two vectors.
+    Parameters:
+        x, y : array-like
+            Input vectors (must be the same length).
+    Returns:
+        float : Similarity score between 0 and 1.
+    """
+    x = np.array(x)
+    y = np.array(y)
+    
+    intersection = np.sum(np.minimum(x, y))
+    union = np.sum(np.maximum(x, y))
+    
+    if union == 0:
+        return np.nan  
+    
+    return intersection / union
 
-def compute_all_similarities(dataset):
+def tanimoto_similarity(a, b):
+    """
+    Compute Tanimoto similarity between two binary vectors a and b.
+
+    Parameters:
+    a, b : numpy.ndarray
+        Binary vectors (1D arrays) of the same length.
+
+    Returns:
+    float: Tanimoto similarity between a and b.
+    """
+    intersection = float(np.count_nonzero(a[a == b]))
+    union = float(np.count_nonzero(a) + np.count_nonzero(b) - intersection)
+    return intersection / union if union != 0 else 0.0
+
+
+def compute_all_similarities(dataset, fingerprint_name, similarity_metric="cosine"):
     """
     Compute all pairwise similarities in the dataset.
     Parameters:
@@ -36,7 +71,7 @@ def compute_all_similarities(dataset):
     """
     fp = dataset.X.copy()
     
-# Preallocate vector of correct size
+    # Preallocate vector of correct size
     n_samples = fp.shape[0]
     n_comps = int((n_samples ** 2 - n_samples) / 2)
     distances = np.zeros((1, n_comps,), dtype=np.float32)
@@ -48,14 +83,16 @@ def compute_all_similarities(dataset):
     for i in tqdm(range(n_samples - 1), desc="Computing similarities"):
         for j in range(i + 1, n_samples):
             
-            distances[0, count] = cosine_similarity(fp[i, :], fp[j, :])
+            if similarity_metric == "cosine":
+                distances[0, count] = cosine_similarity(fp[i, :], fp[j, :])
+            elif similarity_metric == "tanimoto":
+                if fingerprint_name in ["NPClassifierFP", "BiosynfoniKeys"]:
+                    distances[0, count] = counted_tanimoto_similarity(fp[i, :], fp[j, :])
+                elif fingerprint_name in ["MorganFingerprint", "MHFP"]:
+                    distances[0, count] = tanimoto_similarity(fp[i, :], fp[j, :])
             count += 1
 
     return distances
-
-import numpy as np
-
-
  
 
 import numpy as np
@@ -88,8 +125,8 @@ def generate_mst(similarities_matrix, labels):
 
     return mst_without_inversion
 
-def fingerprint_pipeline(dataset, fingerprints, labels):
-    
+def fingerprint_pipeline(dataset, fingerprints, labels, output_file_prefix="", similarity_metric="cosine"):
+
     import numpy as np
 
     similarity_matrices = [] 
@@ -97,9 +134,9 @@ def fingerprint_pipeline(dataset, fingerprints, labels):
     for featurizer in fingerprints:
         dataset_copy = deepcopy(dataset)
         featurizer.featurize(dataset_copy, inplace=True)
-        dataset_copy.to_csv(f"{featurizer.__class__.__name__}_fp.csv")
+        # dataset_copy.to_csv(f"{featurizer.__class__.__name__}_fp.csv")
 
-        similarities = compute_all_similarities(dataset_copy) 
+        similarities = compute_all_similarities(dataset_copy, featurizer.__class__.__name__, similarity_metric=similarity_metric) 
 
         similarity_matrices.append(similarities) 
 
@@ -107,15 +144,15 @@ def fingerprint_pipeline(dataset, fingerprints, labels):
         
     
     correlation_matrix = np.corrcoef(similarities) 
-    with open("correlation_matrix.pkl","wb") as f:
+    with open(f"{output_file_prefix}_correlation_matrix.pkl","wb") as f:
         pickle.dump(correlation_matrix, f)
          
     
-    with open("similarities.pkl", "wb") as f:
+    with open(f"{output_file_prefix}_similarities.pkl", "wb") as f:
         pickle.dump(similarities, f)
     
     mst = generate_mst(similarities, labels)   
-    with open("mst.pkl","wb") as f:
+    with open(f"{output_file_prefix}_mst.pkl","wb") as f:
         pickle.dump(mst, f)
     
 
@@ -124,23 +161,24 @@ def fingerprint_pipeline(dataset, fingerprints, labels):
 import matplotlib.pyplot as plt
 import numpy as np
 
-def violin_plot(similarity_matrix):
-    labels = [
-        "NPClassifierFP",
-        "Biosynfoni",
-        "NP_AUX",
-        # "MHFP",
-        "MorganFP",
-        "NPBERT",
-        "ModernBERT"
-    ]
+def violin_plot(similarity_matrix, labels=None, output_file_preffix=""):
+    if labels is None:
+        labels = [
+            "NPClassifierFP",
+            "Biosynfoni",
+            "NP_AUX",
+            # "MHFP",
+            "MorganFP",
+            "NPBERT",
+            "ModernBERT"
+        ]
 
     # Define colors and linestyles
     colors = {
         "NPClassifierFP": "black",
         "Biosynfoni": "mediumseagreen",
         "NP_AUX": "royalblue",
-        # "MHFP": "darkorange",
+        "MHFP": "darkorange",
         "MorganFP": "orchid",
         "NPBERT": "slategray",
         "ModernBERT": "darkviolet"
@@ -150,17 +188,15 @@ def violin_plot(similarity_matrix):
         "NPClassifierFP": "-",
         "Biosynfoni": "-",
         "NP_AUX": "--",
-        # "MHFP": ":",
+        "MHFP": ":",
         "MorganFP": "-.",
         "NPBERT": (0, (3, 1, 1, 1)),
         "ModernBERT": (0, (1, 1))
     }
 
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(facecolor='none')
     ax.set_xticks(ticks=range(len(labels)))
     ax.set_xticklabels(labels=labels)
-    ax.set_xlabel("Fingerprint Method")
-    ax.set_ylabel("Cosine Similarity")
 
     similarity_matrix = np.nan_to_num(similarity_matrix, nan=0.0)
 
@@ -185,14 +221,16 @@ def violin_plot(similarity_matrix):
         ax.scatter(i, median, color=colors[label], zorder=3, s=50, label=f'Median {label}')
 
     plt.xticks(rotation=45)
-    plt.ylim(-1, 1.4)
-    plt.title("Distribution of Similarity Scores by Fingerprint")
+    if output_file_preffix == "tanimoto":
+        plt.ylim(-0.1, 1.1)
+    else:
+        plt.ylim(-1, 1.4)
     plt.tight_layout()
-    plt.savefig("violinplot_similarity.png", dpi=300)
+    plt.savefig(f"{output_file_preffix}_violinplot_similarity.png", dpi=300, transparent=True)
     plt.close()
 
 
-def generate_mst_from_similarity(similarity_matrix, labels):
+def generate_mst_from_similarity(similarity_matrix, labels, output_file_preffix=""):
     """
     Generate a minimum spanning tree (MST) from a similarity matrix.
     
@@ -206,7 +244,7 @@ def generate_mst_from_similarity(similarity_matrix, labels):
         nx.Graph : The minimum spanning tree as a NetworkX graph.
     """
     mst = generate_mst(similarity_matrix, labels)
-    with open("mst.pkl","wb") as f:
+    with open(f"{output_file_preffix}_mst.pkl","wb") as f:
         pickle.dump(mst, f)
 
 
@@ -222,41 +260,73 @@ if __name__ == "__main__":
     
 
  #Load data from CSV file
-    loader = CSVLoader(dataset_path='30k_sample.csv',
-                   smiles_field='smiles',
-                   id_field='ids',
-                   mode='auto')
-# create the dataset
-    csv_dataset = loader.create_dataset(sep=',', header=0)
-    fingerprint_pipeline(
-        csv_dataset,                     # O dataset carregado com SMILES
-        fingerprints=[NPClassifierFP(), BiosynfoniKeys(), NeuralNPFP(), MorganFingerprint(), LLM(model_path="../NPBERT", model=BertModel, config_class=BertConfig,
-                          tokenizer=NPBERTTokenizer(vocab_file=os.path.join("../NPBERT", "vocab.txt")), device="cuda:1"),
-                          LLM(model_path="../ModernBERT", model=ModernBertModel, config_class=ModernBertConfig, device="cuda:1")
-                          ],
-        labels={
-                0: "NPClassifierFP",
-                1: "BiosynfoniKeys",
-                2: "NeuralNPFP",
-                # 3: "MHFP", 
-                3: "MorganFingerprint",
-                4: "NPBERT",
-                5: "ModernBERT"
-        } 
-               ) 
+#     loader = CSVLoader(dataset_path='30k_sample.csv',
+#                    smiles_field='smiles',
+#                    id_field='ids',
+#                    mode='auto')
+# # create the dataset
+#     csv_dataset = loader.create_dataset(sep=',', header=0)
+#     fingerprint_pipeline(
+#         csv_dataset,                     # O dataset carregado com SMILES
+#         fingerprints=[NPClassifierFP(), BiosynfoniKeys(), NeuralNPFP(), MorganFingerprint(), LLM(model_path="../NPBERT", model=BertModel, config_class=BertConfig,
+#                           tokenizer=NPBERTTokenizer(vocab_file=os.path.join("../NPBERT", "vocab.txt")), device="cuda:1"),
+#                           LLM(model_path="../ModernBERT", model=ModernBertModel, config_class=ModernBertConfig, device="cuda:1")
+#                           ],
+#         labels={
+#                 0: "NPClassifierFP",
+#                 1: "BiosynfoniKeys",
+#                 2: "NeuralNPFP",
+#                 # 3: "MHFP", 
+#                 3: "MorganFingerprint",
+#                 4: "NPBERT",
+#                 5: "ModernBERT"
+#         },
+#         output_file_prefix="cosine",
+#         similarity_metric="cosine" 
+#                ) 
+    
+    # labels={
+    #             0: "NPClassifierFP",
+    #             1: "Biosynfoni",
+    #             2: "NP_AUX",
+    #             # 3: "MHFP", 
+    #             3: "MorganFP",
+    #             4: "NPBERT",
+    #             5: "ModernBERT"
+    #     } 
+    
+    # with open("cosine_similarities.pkl", "rb") as f:
+    #     similarity_matrix = pickle.load(f)
+
+    # violin_plot(similarity_matrix, labels=list(labels.values()), output_file_preffix="cosine")
+
+    # loader = CSVLoader(dataset_path='30k_sample.csv',
+    #                smiles_field='smiles',
+    #                id_field='ids',
+    #                mode='auto')
+    # csv_dataset = loader.create_dataset(sep=',', header=0)
+    # fingerprint_pipeline(
+    #     csv_dataset,                     # O dataset carregado com SMILES
+    #     fingerprints=[NPClassifierFP(), BiosynfoniKeys(), MHFP(), MorganFingerprint(),
+    #                       ],
+    #     labels={
+    #             0: "NPClassifierFP",
+    #             1: "BiosynfoniKeys",
+    #             2: "MHFP", 
+    #             3: "MorganFingerprint",
+    #     },
+    #     output_file_prefix="tanimoto",
+    #     similarity_metric="tanimoto" 
+    #            ) 
+    
     labels={
                 0: "NPClassifierFP",
-                1: "BiosynfoniKeys",
-                2: "NP_AUX",
-                # 3: "MHFP", 
+                1: "Biosynfoni",
+                2: "MHFP",
                 3: "MorganFP",
-                4: "NPBERT",
-                5: "ModernBERT"
-        } 
-    
-    with open("similarities.pkl", "rb") as f:
+        }
+
+    with open("tanimoto_similarities.pkl", "rb") as f:
         similarity_matrix = pickle.load(f)
 
-    violin_plot(similarity_matrix)
-
-    generate_mst_from_similarity(similarity_matrix, labels)
+    violin_plot(similarity_matrix, labels=list(labels.values()), output_file_preffix="tanimoto")
