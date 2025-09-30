@@ -1,329 +1,14 @@
-import os
-import shutil
-from deepmol.loaders import CSVLoader
 from deepmol.metrics import Metric
 from deepmol.pipeline_optimization import PipelineOptimization
 from copy import copy
 import pandas as pd
-from sklearn.metrics import f1_score, precision_score, recall_score
+from sklearn.metrics import f1_score
 import optuna
-
-from deepmol.compound_featurization import NPClassifierFP, NeuralNPFP, BiosynfoniKeys, MixedFeaturizer, MorganFingerprint, MHFP
-
-from deepmol.pipeline_optimization.objective_wrapper import Objective
-from deepmol.pipeline import Pipeline
-
-import numpy as np
-
-
-class FiveFoldCrossValidation(Objective):
-    """
-    
-    Parameters
-    ----------
-    objective_steps : callable
-        Function that returns the steps of the pipeline for a given trial.
-    study : optuna.study.Study
-        Study object that stores the optimization history.
-    direction : str or optuna.study.StudyDirection
-        Direction of the optimization (minimize or maximize).
-    save_top_n : int
-        Number of best pipelines to save.
-    **kwargs
-        Additional keyword arguments passed to the objective_steps function.
-    """
-
-    def __init__(self, objective_steps, study, direction, save_top_n,
-                 trial_timeout=86400, **kwargs):
-        """
-        Initialize the objective function.
-        """
-        super().__init__(objective_steps, study, direction, save_top_n, trial_timeout=trial_timeout)
-        self.metric = kwargs.pop('metric')
-        # the datasets or any additional data can be accessed through kwargs. Here is an example:
-
-        self.datasets = kwargs.pop('datasets')
-
-        # and passed as input of the PipelineOptimization().optimize(data=data). See below in the example of optimization calling.
-
-        self.kwargs = kwargs
-
-    def _run(self, trial: optuna.Trial):
-        """
-        Call the objective function.
-        """
-        # train the pipeline 
-        trial_id = str(trial.number)
-        path = os.path.join(self.save_dir, f'trial_{trial_id}')
-
-        pipeline = Pipeline(steps=self.objective_steps(trial, **self.kwargs), path=path)
-        scores = []
-        for train, validation, test in self.datasets:
-            train_copy = copy(train)
-            validation_copy = copy(validation)
-
-            train_copy._label_names = [str(i) for i, label_ in enumerate(train_copy._label_names)]
-            validation_copy._label_names = [str(i) for i, label_ in enumerate(train_copy._label_names)]
-
-            if pipeline.steps[-1][1].__class__.__name__ == 'KerasModel':
-                pipeline.fit(train_copy, validation_dataset=validation_copy)
-            else:
-                pipeline.fit(train_copy)
-
-            # Convert labels to numpy arrays if they are not already
-            train_labels = np.array(train_copy.y)
-            valid_labels = np.array(validation_copy.y)
-
-            # Check which labels have at least one '1' in both train and validation datasets
-            labels_with_ones = []
-            for i in range(train_labels.shape[1]):  # Assuming labels are in one-hot encoded format
-                if np.any(train_labels[:, i] == 1) and np.any(valid_labels[:, i] == 1):
-                    labels_with_ones.append(i)
-
-            y_pred = pipeline.predict(validation_copy)
-            y_pred = y_pred[:, labels_with_ones]
-            y_true = validation_copy.y[:, labels_with_ones]
-            score = self.metric.compute_metric(y_true, y_pred, n_tasks=y_true.shape[1])[0]
-
-            # score = pipeline.evaluate(validation_copy, [self.metric])[0][self.metric.name]
-            if score is None:
-                score = float('-inf') if self.direction == 'maximize' else float('inf')
-
-            scores.append(score)
-
-        score = np.array(scores).mean()
-        best_scores = self.study.user_attrs['best_scores']
-        min_score = min(best_scores.values()) if len(best_scores) > 0 else float('inf')
-        max_score = max(best_scores.values()) if len(best_scores) > 0 else float('-inf')
-        update_score = (self.direction == 'maximize' and score > min_score) or (
-                self.direction == 'minimize' and score < max_score)
-
-        if len(best_scores) < self.save_top_n or update_score:
-            pipeline.save()
-            best_scores.update({trial_id: score})
-
-            if len(best_scores) > self.save_top_n:
-                if self.direction == 'maximize':
-                    min_score_id = min(best_scores, key=best_scores.get)
-                    del best_scores[min_score_id]
-                    if os.path.exists(os.path.join(self.save_dir, f'trial_{min_score_id}')):
-                        shutil.rmtree(os.path.join(self.save_dir, f'trial_{min_score_id}'))
-                else:
-                    max_score_id = max(best_scores, key=best_scores.get)
-                    del best_scores[max_score_id]
-                    if os.path.exists(os.path.join(self.save_dir, f'trial_{max_score_id}')):
-                        shutil.rmtree(os.path.join(self.save_dir, f'trial_{max_score_id}'))
-
-        self.study.set_user_attr('best_scores', best_scores)
-        return score
-    
-class ValidationMultiLabel(Objective):
-    """
-    
-    Parameters
-    ----------
-    objective_steps : callable
-        Function that returns the steps of the pipeline for a given trial.
-    study : optuna.study.Study
-        Study object that stores the optimization history.
-    direction : str or optuna.study.StudyDirection
-        Direction of the optimization (minimize or maximize).
-    save_top_n : int
-        Number of best pipelines to save.
-    **kwargs
-        Additional keyword arguments passed to the objective_steps function.
-    """
-
-    def __init__(self, objective_steps, study, direction, save_top_n,
-                 trial_timeout=86400, **kwargs):
-        """
-        Initialize the objective function.
-        """
-        super().__init__(objective_steps, study, direction, save_top_n, trial_timeout=trial_timeout)
-        self.metric = kwargs.pop('metric')
-        # the datasets or any additional data can be accessed through kwargs. Here is an example:
-
-        # self.data = kwargs.pop('data')
-        self.validation_dataset = kwargs.pop('validation_dataset')
-        self.train_dataset = kwargs.pop('train_dataset')
-
-        # and passed as input of the PipelineOptimization().optimize(data=data). See below in the example of optimization calling.
-
-        self.kwargs = kwargs
-
-    def _run(self, trial: optuna.Trial):
-        """
-        Call the objective function.
-        """
-        # train the pipeline 
-        trial_id = str(trial.number)
-        path = os.path.join(self.save_dir, f'trial_{trial_id}')
-
-        pipeline = Pipeline(steps=self.objective_steps(trial, **self.kwargs), path=path)
-        scores = []
-        train_copy = copy(self.train_dataset)
-        validation_copy = copy(self.validation_dataset)
-
-        train_copy._label_names = [str(i) for i, label_ in enumerate(train_copy._label_names)]
-        validation_copy._label_names = [str(i) for i, label_ in enumerate(train_copy._label_names)]
-
-        if pipeline.steps[-1][1].__class__.__name__ == 'KerasModel':
-            pipeline.fit(train_copy, validation_dataset=validation_copy)
-        else:
-            pipeline.fit(train_copy)
-
-        # Convert labels to numpy arrays if they are not already
-        train_labels = np.array(train_copy.y)
-        valid_labels = np.array(validation_copy.y)
-
-        # Check which labels have at least one '1' in both train and validation datasets
-        labels_with_ones = []
-        for i in range(train_labels.shape[1]):  # Assuming labels are in one-hot encoded format
-            if np.any(train_labels[:, i] == 1) and np.any(valid_labels[:, i] == 1):
-                labels_with_ones.append(i)
-
-        y_pred = pipeline.predict(validation_copy)
-        y_pred = y_pred[:, labels_with_ones]
-        y_true = validation_copy.y[:, labels_with_ones]
-        score = self.metric.compute_metric(y_true, y_pred, n_tasks=y_true.shape[1])[0]
-
-        # score = pipeline.evaluate(validation_copy, [self.metric])[0][self.metric.name]
-        if score is None:
-            score = float('-inf') if self.direction == 'maximize' else float('inf')
-
-        scores.append(score)
-
-        score = np.array(scores).mean()
-        best_scores = self.study.user_attrs['best_scores']
-        min_score = min(best_scores.values()) if len(best_scores) > 0 else float('inf')
-        max_score = max(best_scores.values()) if len(best_scores) > 0 else float('-inf')
-        update_score = (self.direction == 'maximize' and score > min_score) or (
-                self.direction == 'minimize' and score < max_score)
-
-        if len(best_scores) < self.save_top_n or update_score:
-            pipeline.save()
-            best_scores.update({trial_id: score})
-
-            if len(best_scores) > self.save_top_n:
-                if self.direction == 'maximize':
-                    min_score_id = min(best_scores, key=best_scores.get)
-                    del best_scores[min_score_id]
-                    if os.path.exists(os.path.join(self.save_dir, f'trial_{min_score_id}')):
-                        shutil.rmtree(os.path.join(self.save_dir, f'trial_{min_score_id}'))
-                else:
-                    max_score_id = max(best_scores, key=best_scores.get)
-                    del best_scores[max_score_id]
-                    if os.path.exists(os.path.join(self.save_dir, f'trial_{max_score_id}')):
-                        shutil.rmtree(os.path.join(self.save_dir, f'trial_{max_score_id}'))
-
-        self.study.set_user_attr('best_scores', best_scores)
-        return score
+from deepmol.loaders import CSVLoader
 
 from deepmol.pipeline_optimization._standardizer_objectives import _get_standardizer
 from deepmol.pipeline_optimization._deepchem_models_objectives import *
-
-def _optimize(datasets, steps, pipeline_name):
-    
-    folds = []
-    precision_scores = []
-    recall_scores = []
-    f1_scores = []
-    weighted_f1_scores = []
-    weighted_precision_scores = []
-    weigthed_recall_score = []
-    reps = []
-
-    os.makedirs(f"kegg_pathway_prediction_{pipeline_name}", exist_ok=True)
-
-    rep = 0
-    for tuple_datasets in datasets:
-        fold_idx = 0
-        for train_dataset, validation_dataset, test_dataset in tuple_datasets:
-            labels_names = np.array(train_dataset._label_names)
-            train_dataset._label_names = [str(i) for i, label_ in enumerate(train_dataset._label_names)]
-            validation_dataset._label_names = [str(i) for i, label_ in enumerate(train_dataset._label_names)]
-            test_dataset._label_names = [str(i) for i, label_ in enumerate(train_dataset._label_names)]
-
-            # OPTIMIZE THE PIPELINE
-            po = PipelineOptimization(direction='maximize', study_name=f'kegg_pathway_prediction_{pipeline_name}_fold_{fold_idx}_rep{rep}', sampler=optuna.samplers.TPESampler(seed=43),
-                                    storage=f'sqlite:///kegg_pathway_prediction.db')
-            metric = Metric(f1_score, average="macro")
-
-            po.optimize(data=train_dataset, objective_steps=steps, train_dataset=train_dataset, validation_dataset=validation_dataset,
-                        metric=metric, n_trials=20, save_top_n=1, trial_timeout=60*60*1, objective=ValidationMultiLabel)
-            
-            train_valid_merged = copy(train_dataset)
-            train_valid_merged = train_valid_merged.merge([validation_dataset])
-            po.best_pipeline.fit(train_valid_merged)
-            predictions = po.best_pipeline.predict(test_dataset)
-
-            train_labels = np.array(train_valid_merged.y)
-            valid_labels = np.array(test_dataset.y)
-
-            # Check which labels have at least one '1' in both train and validation datasets
-            labels_with_ones = []
-            for i in range(train_labels.shape[1]):  # Assuming labels are in one-hot encoded format
-                if np.any(train_labels[:, i] == 1) and np.any(valid_labels[:, i] == 1):
-                    labels_with_ones.append(i)
-
-            y_pred = predictions[:, labels_with_ones]
-            y_true = test_dataset.y[:, labels_with_ones]
-            f1 = metric.compute_metric(y_true, y_pred, n_tasks=y_true.shape[1])[0]
-
-            recall = Metric(recall_score, average="macro")
-            precision = Metric(precision_score, average="macro")
-            recall_score_ = recall.compute_metric(y_true, y_pred, n_tasks=y_true.shape[1])[0]
-            precision_score_ = precision.compute_metric(y_true, y_pred, n_tasks=y_true.shape[1])[0]
-
-            wf1 = Metric(f1_score, average="weighted")
-            wrecall = Metric(recall_score, average="weighted")
-            wprecision = Metric(precision_score, average="weighted")
-            wrecall_score_ = wrecall.compute_metric(y_true, y_pred, n_tasks=y_true.shape[1])[0]
-            wprecision_score_ = wprecision.compute_metric(y_true, y_pred, n_tasks=y_true.shape[1])[0]
-            wf1_score_ = wf1.compute_metric(y_true, y_pred, n_tasks=y_true.shape[1])[0]
-
-            f1_scores.append(f1)
-            precision_scores.append(precision_score_)
-            recall_scores.append(recall_score_)
-            weighted_f1_scores.append(wf1_score_)
-            weighted_precision_scores.append(wprecision_score_)
-            weigthed_recall_score.append(wrecall_score_)
-
-            f1 = Metric(f1_score)
-            recall = Metric(recall_score)
-            precision = Metric(precision_score)
-
-            results = pd.DataFrame()
-            results["metrics"] = ["f1", "recall", "precision"]
-            labels_names = labels_names[labels_with_ones]
-            for i, label in enumerate(labels_names):
-                f1_ = f1.compute_metric(y_true[:, i], y_pred[:, i], n_tasks=1)[0]
-                recall_ = recall.compute_metric(y_true[:, i], y_pred[:, i], n_tasks=1)[0]
-                precision_ = precision.compute_metric(y_true[:, i], y_pred[:, i], n_tasks=1)[0]
-                results[label] = [f1_, recall_, precision_]
-
-            results.to_csv(f"kegg_pathway_prediction_{pipeline_name}/kegg_pathway_prediction_{pipeline_name}_fold_{fold_idx}_rep{rep}.csv", index=False)
-
-            folds.append(fold_idx)
-            reps.append(rep)
-
-            fold_idx += 1
-            # create dataframe with the results
-            results = {
-                'fold': folds,
-                'f1_score': f1_scores,
-                'precision_score': precision_scores,
-                'recall_score': recall_scores,
-                'wF1': weighted_f1_scores,
-                'wPrecision': weighted_precision_scores,
-                'wRecall': weigthed_recall_score,
-                'rep': reps
-            }
-            df = pd.DataFrame(results)
-            # save the dataframe to a csv file
-            df.to_csv(f'{pipeline_name}_results.csv', index=False)
-
-        rep += 1
+from deepmol.compound_featurization import NPClassifierFP, NeuralNPFP, BiosynfoniKeys, MorganFingerprint, MHFP  # Ensure this is the correct module for NPClassifierFP
 
 def optimize_for_dmpnn():
 
@@ -350,7 +35,7 @@ def optimize_for_dmpnn():
         batch_size = trial.suggest_categorical("batch_size_deepchem", [8, 16, 32, 64, 128, 256, 512])
         dmpnn_kwargs = {'n_tasks': n_tasks, 'mode': mode, 'n_classes': n_classes, 'batch_size': batch_size}
         
-        epochs = trial.suggest_int("epochs_deepchem", 10, 200)
+        epochs = trial.suggest_int("epochs_deepchem", 10, 50)
         deepchem_kwargs = {"epochs": epochs}
         final_steps = [('standardizer', _get_standardizer(trial))]
         featurizer = DMPNNFeat()
@@ -365,17 +50,31 @@ def optimize_for_dmpnn():
         return final_steps
 
 
-    import pickle
+    dataset = pd.read_csv("train_dataset.csv", nrows=2)
+    labels = dataset.columns[2:]
+    # LOAD THE DATA
+    loader = CSVLoader('train_dataset.csv',
+                    smiles_field='SMILES',labels_fields=labels)
+    train_dataset = loader.create_dataset(sep=",")
+    train_dataset._label_names = [str(i) for i, label_ in enumerate(train_dataset._label_names)]
 
-    # Specify the filename
-    filename = 'splits.pkl'
+    loader = CSVLoader('validation_dataset.csv',
+                    smiles_field='SMILES',labels_fields=labels)
+    validation_dataset = loader.create_dataset(sep=",")
+    validation_dataset._label_names = [str(i) for i, label_ in enumerate(validation_dataset._label_names)]
 
-    # Read the data from the file using pickle
-    with open(filename, 'rb') as file:
-        datasets = pickle.load(file)
 
     # OPTIMIZE THE PIPELINE
-    _optimize(datasets, dmpnn_steps, 'dmpnn')
+    po = PipelineOptimization(direction='maximize', study_name='npclassifier_pathway_prediction_dmpnn', sampler=optuna.samplers.TPESampler(seed=43),
+                            storage='sqlite:///npclassifier_pathway_prediction_dmpnn.db')
+    metric = Metric(f1_score, average="macro")
+
+    data = copy(train_dataset)
+    data._label_names = [str(i) for i, label_ in enumerate(data._label_names)]
+
+    po.optimize(train_dataset=train_dataset, test_dataset=validation_dataset,objective_steps=dmpnn_steps,
+                metric=metric, n_trials=20, data=data, save_top_n=1, trial_timeout=60*60*24
+                )
     
 def optimize_for_attentivefp():
 
@@ -402,7 +101,7 @@ def optimize_for_attentivefp():
         batch_size = trial.suggest_categorical("batch_size_deepchem", [8, 16, 32, 64, 128, 256, 512])
         attentive_fp_kwargs = {'n_tasks': n_tasks, 'mode': mode, 'n_classes': n_classes, 'batch_size': batch_size}
         
-        epochs = trial.suggest_int("epochs_deepchem", 10, 200)
+        epochs = trial.suggest_int("epochs_deepchem", 10, 50)
         deepchem_kwargs = {"epochs": epochs}
         final_steps = [('standardizer', _get_standardizer(trial))]
 
@@ -430,17 +129,31 @@ def optimize_for_attentivefp():
         return final_steps
 
 
-    import pickle
+    dataset = pd.read_csv("train_dataset.csv", nrows=2)
+    labels = dataset.columns[2:]
+    # LOAD THE DATA
+    loader = CSVLoader('train_dataset.csv',
+                    smiles_field='SMILES',labels_fields=labels)
+    train_dataset = loader.create_dataset(sep=",")
+    train_dataset._label_names = [str(i) for i, label_ in enumerate(train_dataset._label_names)]
 
-    # Specify the filename
-    filename = 'splits.pkl'
+    loader = CSVLoader('validation_dataset.csv',
+                    smiles_field='SMILES',labels_fields=labels)
+    validation_dataset = loader.create_dataset(sep=",")
+    validation_dataset._label_names = [str(i) for i, label_ in enumerate(validation_dataset._label_names)]
 
-    # Read the data from the file using pickle
-    with open(filename, 'rb') as file:
-        datasets = pickle.load(file)
 
     # OPTIMIZE THE PIPELINE
-    _optimize(datasets, attentivefp_steps, 'attentive_fp')
+    po = PipelineOptimization(direction='maximize', study_name='npclassifier_pathway_prediction_attentivefp', sampler=optuna.samplers.TPESampler(seed=43),
+                            storage='sqlite:///npclassifier_pathway_prediction_attentivefp.db')
+    metric = Metric(f1_score, average="macro")
+
+    data = copy(train_dataset)
+    data._label_names = [str(i) for i, label_ in enumerate(data._label_names)]
+
+    po.optimize(train_dataset=train_dataset, test_dataset=validation_dataset,objective_steps=attentivefp_steps,
+                metric=metric, n_trials=20, data=data, save_top_n=1, trial_timeout=60*60*24
+                )
     
 def optimize_for_np_classifier_fp():
 
@@ -465,7 +178,7 @@ def optimize_for_np_classifier_fp():
             raise ValueError("data mode must be either 'classification' or 'regression' or a list of both")
 
         batch_size = trial.suggest_categorical("batch_size_deepchem", [8, 16, 32, 64, 128, 256, 512])
-        epochs = trial.suggest_int("epochs_deepchem", 10, 200)
+        epochs = trial.suggest_int("epochs_deepchem", 10, 50)
         deepchem_kwargs = {"epochs": epochs}
         final_steps = [('standardizer', _get_standardizer(trial))]
         featurizer = NPClassifierFP()
@@ -485,20 +198,34 @@ def optimize_for_np_classifier_fp():
 
         final_steps.extend([('featurizer', featurizer), ('model', model)])
         return final_steps
-    
 
-    import pickle
 
-    # Specify the filename
-    filename = 'splits.pkl'
+    dataset = pd.read_csv("train_dataset.csv", nrows=2)
+    labels = dataset.columns[2:]
+    # LOAD THE DATA
+    loader = CSVLoader('train_dataset.csv',
+                    smiles_field='SMILES',labels_fields=labels)
+    train_dataset = loader.create_dataset(sep=",")
+    train_dataset._label_names = [str(i) for i, label_ in enumerate(train_dataset._label_names)]
 
-    # Read the data from the file using pickle
-    with open(filename, 'rb') as file:
-        datasets = pickle.load(file)
+    loader = CSVLoader('validation_dataset.csv',
+                    smiles_field='SMILES',labels_fields=labels)
+    validation_dataset = loader.create_dataset(sep=",")
+    validation_dataset._label_names = [str(i) for i, label_ in enumerate(validation_dataset._label_names)]
+
 
     # OPTIMIZE THE PIPELINE
-    _optimize(datasets, np_classifier_fp_steps, 'np_classifier_fp')
+    po = PipelineOptimization(direction='maximize', study_name='npclassifier_pathway_prediction_np_classifier_fp', sampler=optuna.samplers.TPESampler(seed=43),
+                            storage='sqlite:///npclassifier_pathway_prediction_np_classifier_fp.db')
+    metric = Metric(f1_score, average="macro")
 
+    data = copy(train_dataset)
+    data._label_names = [str(i) for i, label_ in enumerate(data._label_names)]
+
+    po.optimize(train_dataset=train_dataset, test_dataset=validation_dataset,objective_steps=np_classifier_fp_steps,
+                metric=metric, n_trials=20, data=data, save_top_n=1, trial_timeout=60*60*24
+                )
+    
 def optimize_for_neural_npfp():
 
     def neural_npfp_steps(trial, data):
@@ -522,7 +249,7 @@ def optimize_for_neural_npfp():
             raise ValueError("data mode must be either 'classification' or 'regression' or a list of both")
 
         batch_size = trial.suggest_categorical("batch_size_deepchem", [8, 16, 32, 64, 128, 256, 512])
-        epochs = trial.suggest_int("epochs_deepchem", 10, 200)
+        epochs = trial.suggest_int("epochs_deepchem", 10, 50)
         deepchem_kwargs = {"epochs": epochs}
         final_steps = [('standardizer', _get_standardizer(trial))]
 
@@ -546,17 +273,31 @@ def optimize_for_neural_npfp():
         return final_steps
 
 
-    import pickle
+    dataset = pd.read_csv("train_dataset.csv", nrows=2)
+    labels = dataset.columns[2:]
+    # LOAD THE DATA
+    loader = CSVLoader('train_dataset.csv',
+                    smiles_field='SMILES',labels_fields=labels)
+    train_dataset = loader.create_dataset(sep=",")
+    train_dataset._label_names = [str(i) for i, label_ in enumerate(train_dataset._label_names)]
 
-    # Specify the filename
-    filename = 'splits.pkl'
+    loader = CSVLoader('validation_dataset.csv',
+                    smiles_field='SMILES',labels_fields=labels)
+    validation_dataset = loader.create_dataset(sep=",")
+    validation_dataset._label_names = [str(i) for i, label_ in enumerate(validation_dataset._label_names)]
 
-    # Read the data from the file using pickle
-    with open(filename, 'rb') as file:
-        datasets = pickle.load(file)
 
     # OPTIMIZE THE PIPELINE
-    _optimize(datasets, neural_npfp_steps, 'neural_npfp')
+    po = PipelineOptimization(direction='maximize', study_name='npclassifier_pathway_prediction_neural_npfp', sampler=optuna.samplers.TPESampler(seed=43),
+                            storage='sqlite:///npclassifier_pathway_prediction_neural_npfp.db')
+    metric = Metric(f1_score, average="macro")
+
+    data = copy(train_dataset)
+    data._label_names = [str(i) for i, label_ in enumerate(data._label_names)]
+
+    po.optimize(train_dataset=train_dataset, test_dataset=validation_dataset,objective_steps=neural_npfp_steps,
+                metric=metric, n_trials=20, data=data, save_top_n=1, trial_timeout=60*60*24
+                )
     
 def optimize_for_biosynfoni():
 
@@ -581,7 +322,7 @@ def optimize_for_biosynfoni():
             raise ValueError("data mode must be either 'classification' or 'regression' or a list of both")
 
         batch_size = trial.suggest_categorical("batch_size_deepchem", [8, 16, 32, 64, 128, 256, 512])
-        epochs = trial.suggest_int("epochs_deepchem", 10, 200)
+        epochs = trial.suggest_int("epochs_deepchem", 10, 50)
         deepchem_kwargs = {"epochs": epochs}
         final_steps = [('standardizer', _get_standardizer(trial))]
 
@@ -604,18 +345,32 @@ def optimize_for_biosynfoni():
         return final_steps
 
 
-    import pickle
+    dataset = pd.read_csv("train_dataset.csv", nrows=2)
+    labels = dataset.columns[2:]
+    # LOAD THE DATA
+    loader = CSVLoader('train_dataset.csv',
+                    smiles_field='SMILES',labels_fields=labels)
+    train_dataset = loader.create_dataset(sep=",")
+    train_dataset._label_names = [str(i) for i, label_ in enumerate(train_dataset._label_names)]
 
-    # Specify the filename
-    filename = 'splits.pkl'
+    loader = CSVLoader('validation_dataset.csv',
+                    smiles_field='SMILES',labels_fields=labels)
+    validation_dataset = loader.create_dataset(sep=",")
+    validation_dataset._label_names = [str(i) for i, label_ in enumerate(validation_dataset._label_names)]
 
-    # Read the data from the file using pickle
-    with open(filename, 'rb') as file:
-        datasets = pickle.load(file)
 
     # OPTIMIZE THE PIPELINE
-    _optimize(datasets, biosynfoni_steps, 'biosynfoni')
+    po = PipelineOptimization(direction='maximize', study_name='npclassifier_pathway_prediction_biosynfoni', sampler=optuna.samplers.TPESampler(seed=43),
+                            storage='sqlite:///npclassifier_pathway_prediction_biosynfoni.db')
+    metric = Metric(f1_score, average="macro")
 
+    data = copy(train_dataset)
+    data._label_names = [str(i) for i, label_ in enumerate(data._label_names)]
+
+    po.optimize(train_dataset=train_dataset, test_dataset=validation_dataset,objective_steps=biosynfoni_steps,
+                metric=metric, n_trials=20, data=data, save_top_n=1, trial_timeout=60*60*24
+                )
+    
 def optimize_for_np_bert():
 
     def np_bert_steps(trial, data):
@@ -639,7 +394,7 @@ def optimize_for_np_bert():
             raise ValueError("data mode must be either 'classification' or 'regression' or a list of both")
 
         batch_size = trial.suggest_categorical("batch_size_deepchem", [8, 16, 32, 64, 128, 256, 512])
-        epochs = trial.suggest_int("epochs_deepchem", 10, 200)
+        epochs = trial.suggest_int("epochs_deepchem", 10, 50)
         deepchem_kwargs = {"epochs": epochs}
         final_steps = []
 
@@ -660,22 +415,54 @@ def optimize_for_np_bert():
         return final_steps
 
 
+    import numpy as np
+
+    def featurize_dataset(dataset, np_bert):
+        features = []
+        for id_ in dataset.ids:
+            features.append(np_bert[id_])
+        features = np.array(features)
+        dataset._X = features
+        return dataset
+
+    dataset = pd.read_csv("train_dataset.csv", nrows=2)
+    labels = dataset.columns[2:]
+    # LOAD THE DATA
+    loader = CSVLoader('train_dataset.csv',
+                    smiles_field='SMILES',labels_fields=labels, id_field='key')
+    train_dataset = loader.create_dataset(sep=",")
+    train_dataset._label_names = [str(i) for i, label_ in enumerate(train_dataset._label_names)]
+
+    loader = CSVLoader('validation_dataset.csv',
+                    smiles_field='SMILES',labels_fields=labels, id_field='key')
+    validation_dataset = loader.create_dataset(sep=",")
+    validation_dataset._label_names = [str(i) for i, label_ in enumerate(validation_dataset._label_names)]
+
+    # LOAD THE NP-BERT EMBEDDINGS
     import pickle
+    with open('np_bert.pkl', 'rb') as file:
+        np_bert = pickle.load(file)
 
-    # Specify the filename
-    filename = 'splits_npbert.pkl'
-
-    # Read the data from the file using pickle
-    with open(filename, 'rb') as file:
-        datasets = pickle.load(file)
+    # Featurize the datasets
+    train_dataset = featurize_dataset(train_dataset, np_bert)
+    validation_dataset = featurize_dataset(validation_dataset, np_bert)
 
 
     # OPTIMIZE THE PIPELINE
-    _optimize(datasets, np_bert_steps, 'np_bert_2')
+    po = PipelineOptimization(direction='maximize', study_name='npclassifier_pathway_prediction_np_bert', sampler=optuna.samplers.TPESampler(seed=43),
+                            storage='sqlite:///npclassifier_pathway_prediction_np_bert.db', load_if_exists=True)
+    metric = Metric(f1_score, average="macro")
 
-def optimize_for_modern_bert():
+    data = copy(train_dataset)
+    data._label_names = [str(i) for i, label_ in enumerate(data._label_names)]
 
-    def modern_bert_steps(trial, data):
+    po.optimize(train_dataset=train_dataset, test_dataset=validation_dataset,objective_steps=np_bert_steps,
+                metric=metric, n_trials=12, data=data, save_top_n=1, trial_timeout=60*60*24
+                )
+    
+def optimize_for_modernbert():
+
+    def modernbert_steps(trial, data):
         n_tasks = data.n_tasks
         mode = data.mode
         n_classes = len(set(data.y)) if mode == 'classification' else 1
@@ -696,7 +483,7 @@ def optimize_for_modern_bert():
             raise ValueError("data mode must be either 'classification' or 'regression' or a list of both")
 
         batch_size = trial.suggest_categorical("batch_size_deepchem", [8, 16, 32, 64, 128, 256, 512])
-        epochs = trial.suggest_int("epochs_deepchem", 10, 200)
+        epochs = trial.suggest_int("epochs_deepchem", 10, 50)
         deepchem_kwargs = {"epochs": epochs}
         final_steps = []
 
@@ -717,77 +504,51 @@ def optimize_for_modern_bert():
         return final_steps
 
 
+    import numpy as np
+
+    def featurize_dataset(dataset, np_bert):
+        features = []
+        for id_ in dataset.ids:
+            features.append(np_bert[id_])
+        features = np.array(features)
+        dataset._X = features
+        return dataset
+
+    dataset = pd.read_csv("train_dataset.csv", nrows=2)
+    labels = dataset.columns[2:]
+    # LOAD THE DATA
+    loader = CSVLoader('train_dataset.csv',
+                    smiles_field='SMILES',labels_fields=labels, id_field='key')
+    train_dataset = loader.create_dataset(sep=",")
+    train_dataset._label_names = [str(i) for i, label_ in enumerate(train_dataset._label_names)]
+
+    loader = CSVLoader('validation_dataset.csv',
+                    smiles_field='SMILES',labels_fields=labels, id_field='key')
+    validation_dataset = loader.create_dataset(sep=",")
+    validation_dataset._label_names = [str(i) for i, label_ in enumerate(validation_dataset._label_names)]
+
+    # LOAD THE NP-BERT EMBEDDINGS
     import pickle
+    with open('modern_bert.pkl', 'rb') as file:
+        np_bert = pickle.load(file)
 
-    # Specify the filename
-    filename = 'splits_modern_bert.pkl'
-
-    # Read the data from the file using pickle
-    with open(filename, 'rb') as file:
-        datasets = pickle.load(file)
+    # Featurize the datasets
+    train_dataset = featurize_dataset(train_dataset, np_bert)
+    validation_dataset = featurize_dataset(validation_dataset, np_bert)
 
 
     # OPTIMIZE THE PIPELINE
-    _optimize(datasets, modern_bert_steps, 'modern_bert_1')
+    po = PipelineOptimization(direction='maximize', study_name='npclassifier_pathway_prediction_modern_bert', sampler=optuna.samplers.TPESampler(seed=43),
+                            storage='sqlite:///npclassifier_pathway_prediction_modern_bert.db', load_if_exists=True)
+    metric = Metric(f1_score, average="macro")
 
-def optimize_biosynfoni_np_classifierfp():
+    data = copy(train_dataset)
+    data._label_names = [str(i) for i, label_ in enumerate(data._label_names)]
 
-    def biosynfoni_np_classifier_steps(trial, data):
-        n_tasks = data.n_tasks
-        mode = data.mode
-        n_classes = len(set(data.y)) if mode == 'classification' else 1
-        if isinstance(mode, list):
-            if mode[0] == "classification":
-                n_classes = len(set(data.y[0]))
-            else:
-                n_classes = 1
-
-        if mode == 'classification' or (len(set(mode)) == 1 and mode[0] == 'classification'):
-        # , "multitask_irv_classifier_model",
-        # "progressive_multitask_classifier_model", "robust_multitask_classifier_model", "sc_score_model"])
-            mode = 'classification'
-        elif mode == 'regression' or (len(set(mode)) == 1 and mode[0] == 'regression'):
-            # "progressive_multitask_regressor_model", "robust_multitask_regressor_model"])
-            mode = 'regression'
-        else:
-            raise ValueError("data mode must be either 'classification' or 'regression' or a list of both")
-
-        batch_size = trial.suggest_categorical("batch_size_deepchem", [8, 16, 32, 64, 128, 256, 512])
-        epochs = trial.suggest_int("epochs_deepchem", 10, 200)
-        deepchem_kwargs = {"epochs": epochs}
-        final_steps = [('standardizer', _get_standardizer(trial))]
-
-        featurizer = MixedFeaturizer(featurizers=[BiosynfoniKeys(), NPClassifierFP()])
-        n_features = len(featurizer.feature_names)
-        robust_multitask_classifier_kwargs = {'n_tasks': n_tasks, 'n_features': n_features, 'n_classes': n_classes,
-                                              'batch_size': batch_size}
-
-        dropouts = trial.suggest_float('dropout_robust_multitask_classifier', 0.0, 0.5, step=0.25)
-        robust_multitask_classifier_kwargs['dropouts'] = dropouts
-        layer_sizes = trial.suggest_categorical('layer_sizes_robust_multitask_classifier', [str(cat) for cat in [[50], [100], [500], [200, 100]]])
-        robust_multitask_classifier_kwargs['layer_sizes'] = eval(layer_sizes)
-        bypass_dropouts = trial.suggest_float('bypass_dropout_robust_multitask_classifier', 0.0, 0.5, step=0.25)
-        robust_multitask_classifier_kwargs['bypass_dropouts'] = bypass_dropouts
-        model = robust_multitask_classifier_model(
-                                              robust_multitask_classifier_kwargs=robust_multitask_classifier_kwargs,
-                                              deepchem_kwargs=deepchem_kwargs)
-
-        final_steps.extend([('featurizer', featurizer), ('model', model)])
-        return final_steps
-
-
-    import pickle
-
-    # Specify the filename
-    filename = 'splits.pkl'
-
-    # Read the data from the file using pickle
-    with open(filename, 'rb') as file:
-        datasets = pickle.load(file)
-
-    # OPTIMIZE THE PIPELINE
-    _optimize(datasets, biosynfoni_np_classifier_steps, 'biosynfoni_np_classifier')
-
+    po.optimize(train_dataset=train_dataset, test_dataset=validation_dataset,objective_steps=modernbert_steps,
+                metric=metric, n_trials=12, data=data, save_top_n=1, trial_timeout=60*60*24
+                )
+    
 def optimize_for_morganfp():
 
     def morganfp_steps(trial, data):
@@ -811,7 +572,7 @@ def optimize_for_morganfp():
             raise ValueError("data mode must be either 'classification' or 'regression' or a list of both")
 
         batch_size = trial.suggest_categorical("batch_size_deepchem", [8, 16, 32, 64, 128, 256, 512])
-        epochs = trial.suggest_int("epochs_deepchem", 10, 200)
+        epochs = trial.suggest_int("epochs_deepchem", 10, 50)
         deepchem_kwargs = {"epochs": epochs}
         final_steps = [('standardizer', _get_standardizer(trial))]
 
@@ -834,18 +595,32 @@ def optimize_for_morganfp():
         return final_steps
 
 
-    import pickle
+    dataset = pd.read_csv("train_dataset.csv", nrows=2)
+    labels = dataset.columns[2:]
+    # LOAD THE DATA
+    loader = CSVLoader('train_dataset.csv',
+                    smiles_field='SMILES',labels_fields=labels)
+    train_dataset = loader.create_dataset(sep=",")
+    train_dataset._label_names = [str(i) for i, label_ in enumerate(train_dataset._label_names)]
 
-    # Specify the filename
-    filename = 'splits.pkl'
+    loader = CSVLoader('validation_dataset.csv',
+                    smiles_field='SMILES',labels_fields=labels)
+    validation_dataset = loader.create_dataset(sep=",")
+    validation_dataset._label_names = [str(i) for i, label_ in enumerate(validation_dataset._label_names)]
 
-    # Read the data from the file using pickle
-    with open(filename, 'rb') as file:
-        datasets = pickle.load(file)
 
     # OPTIMIZE THE PIPELINE
-    _optimize(datasets, morganfp_steps, 'morganfp')
+    po = PipelineOptimization(direction='maximize', study_name='npclassifier_pathway_prediction_morganfp', sampler=optuna.samplers.TPESampler(seed=43),
+                            storage='sqlite:///npclassifier_pathway_prediction_morganfp.db')
+    metric = Metric(f1_score, average="macro")
 
+    data = copy(train_dataset)
+    data._label_names = [str(i) for i, label_ in enumerate(data._label_names)]
+
+    po.optimize(train_dataset=train_dataset, test_dataset=validation_dataset,objective_steps=morganfp_steps,
+                metric=metric, n_trials=20, data=data, save_top_n=1, trial_timeout=60*60*24
+                )
+    
 def optimize_for_mhfp():
 
     def mhfp_steps(trial, data):
@@ -869,7 +644,7 @@ def optimize_for_mhfp():
             raise ValueError("data mode must be either 'classification' or 'regression' or a list of both")
 
         batch_size = trial.suggest_categorical("batch_size_deepchem", [8, 16, 32, 64, 128, 256, 512])
-        epochs = trial.suggest_int("epochs_deepchem", 10, 200)
+        epochs = trial.suggest_int("epochs_deepchem", 10, 50)
         deepchem_kwargs = {"epochs": epochs}
         final_steps = [('standardizer', _get_standardizer(trial))]
 
@@ -892,24 +667,38 @@ def optimize_for_mhfp():
         return final_steps
 
 
-    import pickle
+    dataset = pd.read_csv("train_dataset.csv", nrows=2)
+    labels = dataset.columns[2:]
+    # LOAD THE DATA
+    loader = CSVLoader('train_dataset.csv',
+                    smiles_field='SMILES',labels_fields=labels)
+    train_dataset = loader.create_dataset(sep=",")
+    train_dataset._label_names = [str(i) for i, label_ in enumerate(train_dataset._label_names)]
 
-    # Specify the filename
-    filename = 'splits.pkl'
+    loader = CSVLoader('validation_dataset.csv',
+                    smiles_field='SMILES',labels_fields=labels)
+    validation_dataset = loader.create_dataset(sep=",")
+    validation_dataset._label_names = [str(i) for i, label_ in enumerate(validation_dataset._label_names)]
 
-    # Read the data from the file using pickle
-    with open(filename, 'rb') as file:
-        datasets = pickle.load(file)
 
     # OPTIMIZE THE PIPELINE
-    _optimize(datasets, mhfp_steps, 'mhfp')
+    po = PipelineOptimization(direction='maximize', study_name='npclassifier_pathway_prediction_mhfp', sampler=optuna.samplers.TPESampler(seed=43),
+                            storage='sqlite:///npclassifier_pathway_prediction_mhfp.db', load_if_exists=True)
+    metric = Metric(f1_score, average="macro")
 
-optimize_for_neural_npfp()
-optimize_for_morganfp()
-optimize_for_biosynfoni()
-optimize_for_np_classifier_fp()
-optimize_for_np_bert()
-optimize_for_modern_bert()
+    data = copy(train_dataset)
+    data._label_names = [str(i) for i, label_ in enumerate(data._label_names)]
+
+    po.optimize(train_dataset=train_dataset, test_dataset=validation_dataset,objective_steps=mhfp_steps,
+                metric=metric, n_trials=8, data=data, save_top_n=1, trial_timeout=60*60*24
+                )
+    
 optimize_for_dmpnn()
-# optimize_biosynfoni_np_classifierfp()
+optimize_for_np_classifier_fp()
+optimize_for_neural_npfp()
+optimize_for_biosynfoni()
+# optimize_for_np_bert()
+# optimize_for_modernbert()
+optimize_for_morganfp()
 optimize_for_mhfp()
+
