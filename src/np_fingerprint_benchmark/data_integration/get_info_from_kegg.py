@@ -1,7 +1,8 @@
 import pandas as pd
-from pathway_prediction.data_integration.kegg_api import KeggApi
+from np_fingerprint_benchmark.data_integration.kegg_api import KeggApi
+from Bio.KEGG import REST as kegg_api
 
-def get_secondary_metabolites_and_their_pathways(self):
+def get_secondary_metabolites_and_their_pathways():
     secondary_metabolites_pathways = pd.read_html("https://www.genome.jp/dbget-bin/www_bget?pathway+map01060")
     metabolites_in_pathway_df = pd.DataFrame()
     for pathway in secondary_metabolites_pathways[6:]:
@@ -29,3 +30,26 @@ def get_secondary_metabolites_and_their_pathways(self):
         metabolites_in_pathway_df = pd.concat((metabolites_in_pathway_df, new_metabolites_df))
         
         metabolites_in_pathway_df.to_csv("kegg_pathways.csv", index=False)
+
+def get_ec_numbers_from_ko_pathway(ko_pathway_id):
+    ko_pathway_id = "ko" + ko_pathway_id[3:]
+    # Fetch the KO pathway file
+    ko_pathway_data = kegg_api.kegg_get(ko_pathway_id).read().split('\n')
+
+    ec_numbers = set()
+    in_orthology_section = False
+
+    for line in ko_pathway_data:
+        if line.startswith('ORTHOLOGY'):
+            in_orthology_section = True
+            continue
+        if in_orthology_section and line.startswith('///'):
+            break
+        if in_orthology_section and '[EC:' in line:
+            # Extract all EC numbers from the line
+            ec_part = line.split('[EC:')[1:]
+            for part in ec_part:
+                ec = part.split(']')[0]
+                ec_numbers.update(ec.split())
+
+    return sorted(ec_numbers)
