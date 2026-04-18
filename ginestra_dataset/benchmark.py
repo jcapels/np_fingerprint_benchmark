@@ -35,7 +35,7 @@ def optimize_for_dmpnn():
         batch_size = trial.suggest_categorical("batch_size_deepchem", [8, 16, 32, 64, 128, 256, 512])
         dmpnn_kwargs = {'n_tasks': n_tasks, 'mode': mode, 'n_classes': n_classes, 'batch_size': batch_size}
         
-        epochs = trial.suggest_int("epochs_deepchem", 10, 50)
+        epochs = trial.suggest_int("epochs_deepchem", 10, 200)
         deepchem_kwargs = {"epochs": epochs}
         final_steps = [('standardizer', _get_standardizer(trial))]
         featurizer = DMPNNFeat()
@@ -101,7 +101,7 @@ def optimize_for_attentivefp():
         batch_size = trial.suggest_categorical("batch_size_deepchem", [8, 16, 32, 64, 128, 256, 512])
         attentive_fp_kwargs = {'n_tasks': n_tasks, 'mode': mode, 'n_classes': n_classes, 'batch_size': batch_size}
         
-        epochs = trial.suggest_int("epochs_deepchem", 10, 50)
+        epochs = trial.suggest_int("epochs_deepchem", 10, 200)
         deepchem_kwargs = {"epochs": epochs}
         final_steps = [('standardizer', _get_standardizer(trial))]
 
@@ -118,7 +118,7 @@ def optimize_for_attentivefp():
         # model
         num_layers = trial.suggest_int('num_layers_attentive_fp', 1, 5)
         attentive_fp_kwargs['num_layers'] = num_layers
-        graph_feat_size = trial.suggest_int('graph_feat_size_attentive_fp', 100, 500, step=100)
+        graph_feat_size = trial.suggest_int('graph_feat_size_attentive_fp', 100, 500, step=200)
         attentive_fp_kwargs['graph_feat_size'] = graph_feat_size
         dropout = trial.suggest_float('dropout_attentive_fp', 0.0, 0.5, step=0.25)
         attentive_fp_kwargs['dropout'] = dropout
@@ -178,7 +178,7 @@ def optimize_for_np_classifier_fp():
             raise ValueError("data mode must be either 'classification' or 'regression' or a list of both")
 
         batch_size = trial.suggest_categorical("batch_size_deepchem", [8, 16, 32, 64, 128, 256, 512])
-        epochs = trial.suggest_int("epochs_deepchem", 10, 50)
+        epochs = trial.suggest_int("epochs_deepchem", 10, 200)
         deepchem_kwargs = {"epochs": epochs}
         final_steps = [('standardizer', _get_standardizer(trial))]
         featurizer = NPClassifierFP()
@@ -249,7 +249,7 @@ def optimize_for_neural_npfp():
             raise ValueError("data mode must be either 'classification' or 'regression' or a list of both")
 
         batch_size = trial.suggest_categorical("batch_size_deepchem", [8, 16, 32, 64, 128, 256, 512])
-        epochs = trial.suggest_int("epochs_deepchem", 10, 50)
+        epochs = trial.suggest_int("epochs_deepchem", 10, 200)
         deepchem_kwargs = {"epochs": epochs}
         final_steps = [('standardizer', _get_standardizer(trial))]
 
@@ -322,7 +322,7 @@ def optimize_for_biosynfoni():
             raise ValueError("data mode must be either 'classification' or 'regression' or a list of both")
 
         batch_size = trial.suggest_categorical("batch_size_deepchem", [8, 16, 32, 64, 128, 256, 512])
-        epochs = trial.suggest_int("epochs_deepchem", 10, 50)
+        epochs = trial.suggest_int("epochs_deepchem", 10, 200)
         deepchem_kwargs = {"epochs": epochs}
         final_steps = [('standardizer', _get_standardizer(trial))]
 
@@ -394,7 +394,7 @@ def optimize_for_np_bert():
             raise ValueError("data mode must be either 'classification' or 'regression' or a list of both")
 
         batch_size = trial.suggest_categorical("batch_size_deepchem", [8, 16, 32, 64, 128, 256, 512])
-        epochs = trial.suggest_int("epochs_deepchem", 10, 50)
+        epochs = trial.suggest_int("epochs_deepchem", 10, 200)
         deepchem_kwargs = {"epochs": epochs}
         final_steps = []
 
@@ -483,7 +483,7 @@ def optimize_for_modernbert():
             raise ValueError("data mode must be either 'classification' or 'regression' or a list of both")
 
         batch_size = trial.suggest_categorical("batch_size_deepchem", [8, 16, 32, 64, 128, 256, 512])
-        epochs = trial.suggest_int("epochs_deepchem", 10, 50)
+        epochs = trial.suggest_int("epochs_deepchem", 10, 200)
         deepchem_kwargs = {"epochs": epochs}
         final_steps = []
 
@@ -572,7 +572,7 @@ def optimize_for_morganfp():
             raise ValueError("data mode must be either 'classification' or 'regression' or a list of both")
 
         batch_size = trial.suggest_categorical("batch_size_deepchem", [8, 16, 32, 64, 128, 256, 512])
-        epochs = trial.suggest_int("epochs_deepchem", 10, 50)
+        epochs = trial.suggest_int("epochs_deepchem", 10, 200)
         deepchem_kwargs = {"epochs": epochs}
         final_steps = [('standardizer', _get_standardizer(trial))]
 
@@ -644,7 +644,7 @@ def optimize_for_mhfp():
             raise ValueError("data mode must be either 'classification' or 'regression' or a list of both")
 
         batch_size = trial.suggest_categorical("batch_size_deepchem", [8, 16, 32, 64, 128, 256, 512])
-        epochs = trial.suggest_int("epochs_deepchem", 10, 50)
+        epochs = trial.suggest_int("epochs_deepchem", 10, 200)
         deepchem_kwargs = {"epochs": epochs}
         final_steps = [('standardizer', _get_standardizer(trial))]
 
@@ -693,8 +693,8 @@ def optimize_for_mhfp():
                 metric=metric, n_trials=8, data=data, save_top_n=1, trial_timeout=60*60*24
                 )
     
-optimize_for_dmpnn()
 optimize_for_np_classifier_fp()
+optimize_for_dmpnn()
 optimize_for_neural_npfp()
 optimize_for_biosynfoni()
 # optimize_for_np_bert()

@@ -24,7 +24,7 @@ def evaluate_pipeline(pipeline_path, name):
 
         results = pd.DataFrame(columns=["rep", "f1", "recall", "precision"])
 
-    for j in range(5):
+    for j in range(4,5):
 
         # Set the random seed
         tf.random.set_seed(42)
@@ -61,11 +61,33 @@ def evaluate_pipeline(pipeline_path, name):
         recall_macro = recall_score(test_dataset.y, predictions, average="macro")
         precision_macro = precision_score(test_dataset.y, predictions, average="macro")
 
+        f1_macro_pathway = f1_score(test_dataset.y[:, 7], predictions[:, 7], average="macro")
+        recall_macro_pathway = recall_score(test_dataset.y[:, 7], predictions[:, 7], average="macro")
+        precision_macro_pathway = precision_score(test_dataset.y[:, 7], predictions[:, 7], average="macro")
+
+        f1_macro_superclass = f1_score(test_dataset.y[:, 7:77], predictions[:, 7:77], average="macro")
+        recall_macro_superclass = recall_score(test_dataset.y[:, 7:77], predictions[:, 7:77], average="macro")
+        precision_macro_superclass = precision_score(test_dataset.y[:, 7:77], predictions[:, 7:77], average="macro")
+
+        f1_macro_class = f1_score(test_dataset.y[:, 77:], predictions[:, 77:], average="macro")
+        recall_macro_class = recall_score(test_dataset.y[:, 77:], predictions[:, 77:], average="macro")
+        precision_macro_class = precision_score(test_dataset.y[:, 77:], predictions[:, 77:], average="macro")
+
         results = pd.concat([results, pd.DataFrame({
             "rep": [j],
             "f1": [f1_macro],
             "recall": [recall_macro],
-            "precision": [precision_macro]
+            "precision": [precision_macro],
+            "f1_pathway": [f1_macro_pathway],
+            "recall_pathway": [recall_macro_pathway],
+            "precision_pathway": [precision_macro_pathway],
+            "f1_superclass": [f1_macro_superclass],
+            "recall_superclass": [recall_macro_superclass],
+            "precision_superclass": [precision_macro_superclass],
+            "f1_class": [f1_macro_class],
+            "recall_class": [recall_macro_class],
+            "precision_class": [precision_macro_class]
+
         })])
         results.to_csv(f"{name}.csv", index=False)
 
@@ -145,23 +167,44 @@ def evaluate_pipeline_bert(pipeline_path, name, bert_path, bert_test_path):
         recall_macro = recall_score(test_dataset.y, predictions, average="macro")
         precision_macro = precision_score(test_dataset.y, predictions, average="macro")
 
+        f1_macro_pathway = f1_score(test_dataset.y[:, 7], predictions[:, 7], average="macro")
+        recall_macro_pathway = recall_score(test_dataset.y[:, 7], predictions[:, 7], average="macro")
+        precision_macro_pathway = precision_score(test_dataset.y[:, 7], predictions[:, 7], average="macro")
+
+        f1_macro_superclass = f1_score(test_dataset.y[:, 7:77], predictions[:, 7:77], average="macro")
+        recall_macro_superclass = recall_score(test_dataset.y[:, 7:77], predictions[:, 7:77], average="macro")
+        precision_macro_superclass = precision_score(test_dataset.y[:, 7:77], predictions[:, 7:77], average="macro")
+
+        f1_macro_class = f1_score(test_dataset.y[:, 77:], predictions[:, 77:], average="macro")
+        recall_macro_class = recall_score(test_dataset.y[:, 77:], predictions[:, 77:], average="macro")
+        precision_macro_class = precision_score(test_dataset.y[:, 77:], predictions[:, 77:], average="macro")
+
         results = pd.concat([results, pd.DataFrame({
             "rep": [j],
             "f1": [f1_macro],
             "recall": [recall_macro],
-            "precision": [precision_macro]
+            "precision": [precision_macro],
+            "f1_pathway": [f1_macro_pathway],
+            "recall_pathway": [recall_macro_pathway],
+            "precision_pathway": [precision_macro_pathway],
+            "f1_superclass": [f1_macro_superclass],
+            "recall_superclass": [recall_macro_superclass],
+            "precision_superclass": [precision_macro_superclass],
+            "f1_class": [f1_macro_class],
+            "recall_class": [recall_macro_class],
+            "precision_class": [precision_macro_class]
+
         })])
         results.to_csv(f"{name}.csv", index=False)
 
         tf.keras.backend.clear_session()
         
 # evaluate_pipeline("npclassifier_pathway_prediction_biosynfoni/trial_12", "np_classifier_biosynfoni")
-# evaluate_pipeline("npclassifier_pathway_prediction_attentivefp/trial_14", "np_classifier_attentivefp")
 # evaluate_pipeline("npclassifier_pathway_prediction_dmpnn/trial_12", "np_classifier_dmpnn")
 # evaluate_pipeline("npclassifier_pathway_prediction_neural_npfp/trial_15", "np_classifier_neural_npfp")
-# evaluate_pipeline("npclassifier_pathway_prediction_np_classifier_fp/trial_11", "np_classifier_np_classifier_fp")
+evaluate_pipeline("npclassifier_pathway_prediction_np_classifier_fp/trial_11", "np_classifier_np_classifier_fp")
 # evaluate_pipeline_bert("npclassifier_pathway_prediction_np_bert/trial_14", "np_classifier_np_bert", "np_bert.pkl", "np_bert_test_set.pkl")
 # evaluate_pipeline_bert("npclassifier_pathway_prediction_modern_bert/trial_0", "np_classifier_modern_bert", "modern_bert.pkl", "modern_bert_test_set.pkl")
 # evaluate_pipeline("npclassifier_pathway_prediction_morganfp/trial_2", "np_classifier_morganfp")
-evaluate_pipeline("npclassifier_pathway_prediction_mhfp/trial_19", "np_classifier_mhfp")
+# evaluate_pipeline("npclassifier_pathway_prediction_mhfp/trial_19", "np_classifier_mhfp")
 

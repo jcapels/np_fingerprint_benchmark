@@ -24,7 +24,7 @@ def evaluate_pipeline(pipeline_path, name):
 
         results = pd.DataFrame(columns=["rep", "f1", "recall", "precision"])
 
-    for j in range(3,5):
+    for j in range(0,5):
 
         # Set the random seed
         tf.random.set_seed(42)
@@ -202,7 +202,7 @@ def evaluate_pipeline_bert(pipeline_path, name, bert_path, bert_test_path):
 # evaluate_pipeline("npclassifier_pathway_prediction_biosynfoni/trial_12", "np_classifier_biosynfoni")
 # evaluate_pipeline("npclassifier_pathway_prediction_dmpnn/trial_12", "np_classifier_dmpnn")
 # evaluate_pipeline("npclassifier_pathway_prediction_neural_npfp/trial_15", "np_classifier_neural_npfp")
-evaluate_pipeline("npclassifier_pathway_prediction_np_classifier_fp/trial_11", "np_classifier_np_classifier_fp")
+evaluate_pipeline("npclassifier_pathway_prediction_np_classifier_fp/trial_4", "npclassifier_pathway_prediction_np_classifier_fp")
 # evaluate_pipeline_bert("npclassifier_pathway_prediction_np_bert/trial_14", "np_classifier_np_bert", "np_bert.pkl", "np_bert_test_set.pkl")
 # evaluate_pipeline_bert("npclassifier_pathway_prediction_modern_bert/trial_0", "np_classifier_modern_bert", "modern_bert.pkl", "modern_bert_test_set.pkl")
 # evaluate_pipeline("npclassifier_pathway_prediction_morganfp/trial_2", "np_classifier_morganfp")

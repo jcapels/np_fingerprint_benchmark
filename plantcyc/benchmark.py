@@ -497,7 +497,7 @@ def optimize_for_np_classifier_fp():
         datasets = pickle.load(file)
 
     # OPTIMIZE THE PIPELINE
-    _optimize(datasets, np_classifier_fp_steps, 'np_classifier_fp')
+    _optimize(datasets, np_classifier_fp_steps, 'np_classifier_fp_3')
 
 def optimize_for_neural_npfp():
 
@@ -949,7 +949,7 @@ def optimize_for_mhfp():
     # OPTIMIZE THE PIPELINE
     _optimize(datasets, mhfp_steps, 'mhfp_1')
 
-optimize_for_neural_npfp()
+# optimize_for_neural_npfp()
 optimize_for_np_classifier_fp()
 optimize_for_biosynfoni()
 optimize_for_dmpnn()
