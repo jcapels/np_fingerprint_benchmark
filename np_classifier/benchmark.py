@@ -693,13 +693,12 @@ def optimize_for_mhfp():
                 metric=metric, n_trials=8, data=data, save_top_n=5, trial_timeout=60*60*24
                 )
     
-# optimize_for_dmpnn()
-# optimize_for_attentivefp()np_bert
-# optimize_for_np_classifier_fp()
-# optimize_for_neural_npfp()
+optimize_for_dmpnn()
+optimize_for_np_classifier_fp()
+optimize_for_neural_npfp()
 optimize_for_biosynfoni()
-# optimize_for_np_bert()
-# optimize_for_modernbert()
-# optimize_for_morganfp()
-# optimize_for_mhfp()
+optimize_for_np_bert()
+optimize_for_modernbert()
+optimize_for_morganfp()
+optimize_for_mhfp()
 
