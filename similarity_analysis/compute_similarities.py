@@ -259,65 +259,65 @@ if __name__ == "__main__":
     from transformers import BertConfig, BertModel, ModernBertModel, ModernBertConfig
     
 
- #Load data from CSV file
-#     loader = CSVLoader(dataset_path='30k_sample.csv',
-#                    smiles_field='smiles',
-#                    id_field='ids',
-#                    mode='auto')
-# # create the dataset
-#     csv_dataset = loader.create_dataset(sep=',', header=0)
-#     fingerprint_pipeline(
-#         csv_dataset,                     # O dataset carregado com SMILES
-#         fingerprints=[NPClassifierFP(), BiosynfoniKeys(), NeuralNPFP(), MorganFingerprint(), LLM(model_path="../NPBERT", model=BertModel, config_class=BertConfig,
-#                           tokenizer=NPBERTTokenizer(vocab_file=os.path.join("../NPBERT", "vocab.txt")), device="cuda:1"),
-#                           LLM(model_path="../ModernBERT", model=ModernBertModel, config_class=ModernBertConfig, device="cuda:1")
-#                           ],
-#         labels={
-#                 0: "NPClassifierFP",
-#                 1: "BiosynfoniKeys",
-#                 2: "NeuralNPFP",
-#                 # 3: "MHFP", 
-#                 3: "MorganFingerprint",
-#                 4: "NPBERT",
-#                 5: "ModernBERT"
-#         },
-#         output_file_prefix="cosine",
-#         similarity_metric="cosine" 
-#                ) 
+    #Load data from CSV file
+    loader = CSVLoader(dataset_path='30k_sample.csv',
+                   smiles_field='smiles',
+                   id_field='ids',
+                   mode='auto')
+    # create the dataset
+    csv_dataset = loader.create_dataset(sep=',', header=0)
+    fingerprint_pipeline(
+        csv_dataset,                     # O dataset carregado com SMILES
+        fingerprints=[NPClassifierFP(), BiosynfoniKeys(), NeuralNPFP(), MorganFingerprint(), LLM(model_path="../NPBERT", model=BertModel, config_class=BertConfig,
+                          tokenizer=NPBERTTokenizer(vocab_file=os.path.join("../NPBERT", "vocab.txt")), device="cuda:1"),
+                          LLM(model_path="../ModernBERT", model=ModernBertModel, config_class=ModernBertConfig, device="cuda:1")
+                          ],
+        labels={
+                0: "NPClassifierFP",
+                1: "BiosynfoniKeys",
+                2: "NeuralNPFP",
+                # 3: "MHFP", 
+                3: "MorganFingerprint",
+                4: "NPBERT",
+                5: "ModernBERT"
+        },
+        output_file_prefix="cosine",
+        similarity_metric="cosine" 
+               ) 
     
-    # labels={
-    #             0: "NPClassifierFP",
-    #             1: "Biosynfoni",
-    #             2: "NP_AUX",
-    #             # 3: "MHFP", 
-    #             3: "MorganFP",
-    #             4: "NPBERT",
-    #             5: "ModernBERT"
-    #     } 
+    labels={
+                0: "NPClassifierFP",
+                1: "Biosynfoni",
+                2: "NP_AUX",
+                # 3: "MHFP", 
+                3: "MorganFP",
+                4: "NPBERT",
+                5: "ModernBERT"
+        } 
     
-    # with open("cosine_similarities.pkl", "rb") as f:
-    #     similarity_matrix = pickle.load(f)
+    with open("cosine_similarities.pkl", "rb") as f:
+        similarity_matrix = pickle.load(f)
 
-    # violin_plot(similarity_matrix, labels=list(labels.values()), output_file_preffix="cosine")
+    violin_plot(similarity_matrix, labels=list(labels.values()), output_file_preffix="cosine")
 
-    # loader = CSVLoader(dataset_path='30k_sample.csv',
-    #                smiles_field='smiles',
-    #                id_field='ids',
-    #                mode='auto')
-    # csv_dataset = loader.create_dataset(sep=',', header=0)
-    # fingerprint_pipeline(
-    #     csv_dataset,                     # O dataset carregado com SMILES
-    #     fingerprints=[NPClassifierFP(), BiosynfoniKeys(), MHFP(), MorganFingerprint(),
-    #                       ],
-    #     labels={
-    #             0: "NPClassifierFP",
-    #             1: "BiosynfoniKeys",
-    #             2: "MHFP", 
-    #             3: "MorganFingerprint",
-    #     },
-    #     output_file_prefix="tanimoto",
-    #     similarity_metric="tanimoto" 
-    #            ) 
+    loader = CSVLoader(dataset_path='30k_sample.csv',
+                   smiles_field='smiles',
+                   id_field='ids',
+                   mode='auto')
+    csv_dataset = loader.create_dataset(sep=',', header=0)
+    fingerprint_pipeline(
+        csv_dataset,                     # O dataset carregado com SMILES
+        fingerprints=[NPClassifierFP(), BiosynfoniKeys(), MHFP(), MorganFingerprint(),
+                          ],
+        labels={
+                0: "NPClassifierFP",
+                1: "BiosynfoniKeys",
+                2: "MHFP", 
+                3: "MorganFingerprint",
+        },
+        output_file_prefix="tanimoto",
+        similarity_metric="tanimoto" 
+               ) 
     
     labels={
                 0: "NPClassifierFP",

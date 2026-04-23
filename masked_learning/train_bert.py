@@ -36,14 +36,14 @@ def evaluate_model(test_dataset):
     print(model.evaluate(test_dataset))
 
 
-loader = CSVLoaderForMaskedLM(dataset_path="data/train_test_split_scaffolds/train_dataset.csv",
+loader = CSVLoaderForMaskedLM(dataset_path="train_test_split_scaffolds/train_dataset.csv",
                            smiles_field='smiles',
                            id_field='ids',
                            mode='auto', vocabulary_path="vocab.txt",
                            masking_probability=0.2)
 train_dataset = loader.create_dataset(sep=',')
 
-loader = CSVLoaderForMaskedLM(dataset_path="data/train_test_split_scaffolds/validation_dataset_wo_redundancy.csv",
+loader = CSVLoaderForMaskedLM(dataset_path="train_test_split_scaffolds/validation_dataset_wo_redundancy.csv",
                            smiles_field='smiles',
                            id_field='ids',
                            mode='auto', vocabulary_path="vocab.txt",

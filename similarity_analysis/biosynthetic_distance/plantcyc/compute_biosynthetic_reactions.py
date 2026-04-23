@@ -131,9 +131,6 @@ def main():
         index_col="pathway_id",
         header=0,
     )
-    # compound_data = pd.read_csv(
-    #     input_dir / "metacyc_compounds.tsv", sep="\t", index_col="compound_id", header=0
-    # )
 
     pw_chains = generate_reaction_chains(pathways)
 
@@ -152,4 +149,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-# ver dos resultados quais tem smiles, os que não tiverem eliminar. criar um dataset já com os smiles. criar função que da origem à coluna NPClassifierFP entre os 2 compostos de cada linha, criar um gráfico como o c) do biosynfoni com a similaridade, criar o ficheiro mock para o datset
