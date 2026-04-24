@@ -8,7 +8,7 @@ def train_model(train_dataset, validation_dataset):
     model = DeBERTa(vocab_size=train_dataset.tokenizer.vocab_size, 
                 accelerator="gpu", strategy="ddp_find_unused_parameters_true", devices=[0,1,2,3], max_epochs=10, batch_size=56).fit(train_dataset, validation_dataset=validation_dataset)
 
-    model.save("data/train_test_split_scaffolds/DeBERTa_small_0_2")
+    model.save("data/train_test_split_scaffolds/DeBERTa_small")
 
 def train_model_large(train_dataset, validation_dataset):
     import pytorch_lightning as pl
@@ -19,14 +19,14 @@ def train_model_large(train_dataset, validation_dataset):
                 accelerator="gpu", strategy="ddp_find_unused_parameters_true", devices=[0, 1,2, 3], max_epochs=10, batch_size=8,
                 metric = Perplexity(), patience=2).fit(train_dataset, validation_dataset=validation_dataset)
 
-    model.save("data/train_test_split_scaffolds/DeBERTa_large_0_2")
+    model.save("data/train_test_split_scaffolds/DeBERTa_large")
     
     print(model.evaluate(validation_dataset))
 
 def evaluate_model(test_dataset):
     metrics_df = pd.DataFrame()
     from deepmol.models import DeBERTa
-    model = DeBERTa.load("data/train_test_split_scaffolds/DeBERTa_small_0_2", mode="masked_learning")
+    model = DeBERTa.load("data/train_test_split_scaffolds/DeBERTa_small", mode="masked_learning")
     # model.evaluate(train_dataset))
     # print(model.evaluate(validation_dataset))
     print(model.evaluate(test_dataset))
@@ -45,16 +45,16 @@ loader = CSVLoaderForMaskedLM(dataset_path="data/train_test_split_scaffolds/vali
                            masking_probability=0.2)
 validation_dataset = loader.create_dataset(sep=',')
 
-# loader = CSVLoaderForMaskedLM(dataset_path="data/train_test_split_scaffolds/test_dataset_wo_redundancy.csv",
-#                            smiles_field='smiles',
-#                            id_field='ids',
-#                            mode='auto', vocabulary_path="vocab.txt",
-#                            masking_probability=0.2)
-# test_dataset = loader.create_dataset(sep=',')
+loader = CSVLoaderForMaskedLM(dataset_path="data/train_test_split_scaffolds/test_dataset_wo_redundancy.csv",
+                           smiles_field='smiles',
+                           id_field='ids',
+                           mode='auto', vocabulary_path="vocab.txt",
+                           masking_probability=0.2)
+test_dataset = loader.create_dataset(sep=',')
 
-# train_model(train_dataset, validation_dataset)
-train_model_large(train_dataset, validation_dataset)
-# evaluate_model(test_dataset)
+train_model(train_dataset, validation_dataset)
+# train_model_large(train_dataset, validation_dataset)
+evaluate_model(test_dataset)
 
 
 

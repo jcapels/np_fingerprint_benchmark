@@ -14,6 +14,8 @@
 
 ## Environment Setup
 
+To get all the raw data needed and language models download https://zenodo.org/records/19733706.
+
 Create and activate a Conda environment with Python 3.11:
 
 ```bash
@@ -49,6 +51,10 @@ Run the following scripts to obtain data:
 - [PlantCyc](plantcyc/get_data_from_plantcyc.py)
 - [KEGG](kegg/get_data_from_kegg.py)
 
+After that the processing notebooks have to be run: 
+- [PlantCyc](plantcyc/preprocess_plantcyc_data.ipynb) and [prepare for ML benchmark](plantcyc/prepare_data_for_ml.ipynb)
+- [KEGG](kegg/preprocess_kegg_data.ipynb) and [prepare for ML benchmark](kegg/prepare_data_for_ml.ipynb)
+
 ### NPClassifier Dataset
 1. Download the dataset: [dataset_class_all_V1.pkl](https://www.dropbox.com/s/y25rl9kuggpzly5/datset_class_all_V1.pkl?dl=0)
 2. Place it in [np_classifier/Data](np_classifier/Data)
@@ -56,6 +62,8 @@ Run the following scripts to obtain data:
 
 ### Precursors
 The precursor data is included in this repository, originally sourced from [SMPrecursorPredictor](https://github.com/jcapels/SMPrecursorPredictor/tree/main/models_and_datasets/final_dataset).
+
+However, some preprocessing is needed to prepare for ML: see in [precursors/prepare_data_for_ml.ipynb](precursors/prepare_data_for_ml.ipynb).
 
 ### Masked Learning Data
 Data for masked learning was obtained from [LOTUSDB](https://lotus.naturalproducts.net/) and [COCONUT](https://coconut.naturalproducts.net/). Place the data in the respective folders within `masked_learning/` and run `integration_of_data_masked_learning.ipynb`.
